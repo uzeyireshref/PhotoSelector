@@ -45,7 +45,10 @@ sealed class ExportStatus {
         val folderName: String,
         val copiedFiles: Int
     ) : ExportStatus()
-    data class Error(val message: String) : ExportStatus()
+    data class Error(
+        val message: UiMessage,
+        val argument: String? = null
+    ) : ExportStatus()
 }
 
 enum class PhotoViewerSource {
@@ -63,7 +66,7 @@ class PhotoViewModel : ViewModel() {
         private set
     var exportStatus by mutableStateOf<ExportStatus>(ExportStatus.Idle)
         private set
-    var selectionWarningMessage by mutableStateOf<String?>(null)
+    var selectionWarningMessage by mutableStateOf<UiMessage?>(null)
         private set
     var viewerSource by mutableStateOf(PhotoViewerSource.Gallery)
         private set
@@ -135,7 +138,7 @@ class PhotoViewModel : ViewModel() {
 
     fun goToReviewOrWarn(): Boolean {
         if (likedPhotos.isEmpty()) {
-            selectionWarningMessage = UiText.selectAtLeastOnePhoto
+            selectionWarningMessage = UiMessage.SelectAtLeastOnePhoto
             return false
         }
         selectionWarningMessage = null
@@ -145,7 +148,7 @@ class PhotoViewModel : ViewModel() {
 
     fun goToConfirmationOrWarn(): Boolean {
         if (likedPhotos.isEmpty()) {
-            selectionWarningMessage = UiText.selectAtLeastOnePhoto
+            selectionWarningMessage = UiMessage.SelectAtLeastOnePhoto
             return false
         }
         selectionWarningMessage = null
@@ -248,11 +251,11 @@ class PhotoViewModel : ViewModel() {
         val treeUri = selectedFolderUri
         val selectedPhotos = likedPhotoItems
         if (treeUri == null) {
-            exportStatus = ExportStatus.Error(UiText.noSourceFolder)
+            exportStatus = ExportStatus.Error(UiMessage.NoSourceFolder)
             return exportStatus
         }
         if (selectedPhotos.isEmpty()) {
-            exportStatus = ExportStatus.Error(UiText.noLikedPhotos)
+            exportStatus = ExportStatus.Error(UiMessage.NoLikedPhotos)
             return exportStatus
         }
 
@@ -262,7 +265,11 @@ class PhotoViewModel : ViewModel() {
             runCatching {
                 copySelectedFiles(contentResolver, treeUri, folderName, selectedPhotos)
             }.getOrElse { error ->
-                ExportStatus.Error(error.message ?: UiText.exportFailedFallback)
+                if (error is LocalizedExportException) {
+                    ExportStatus.Error(error.uiMessage, error.argument)
+                } else {
+                    ExportStatus.Error(UiMessage.ExportFailedFallback)
+                }
             }
         }
         return exportStatus
@@ -324,7 +331,7 @@ class PhotoViewModel : ViewModel() {
             parentDocumentUri,
             DocumentsContract.Document.MIME_TYPE_DIR,
             folderName
-        ) ?: error(UiText.couldNotCreateExportFolder)
+        ) ?: localizedError(UiMessage.CouldNotCreateExportFolder)
 
         val filesToCopy = selectedPhotos.flatMap { photo ->
             listOf(FolderDocumentData(photo.uri, photo.displayName, "image/jpeg")) + matchingRawFilesFor(photo)
@@ -336,7 +343,7 @@ class PhotoViewModel : ViewModel() {
                 exportFolderUri,
                 source.mimeType.ifBlank { "application/octet-stream" },
                 source.displayName
-            ) ?: error(UiText.couldNotCreateFile(source.displayName))
+            ) ?: localizedError(UiMessage.CouldNotCreateFile, source.displayName)
             copyDocument(contentResolver, source.uri, destinationUri)
         }
 
@@ -347,8 +354,12 @@ class PhotoViewModel : ViewModel() {
         contentResolver.openInputStream(sourceUri)?.use { input ->
             contentResolver.openOutputStream(destinationUri)?.use { output ->
                 input.copyTo(output)
-            } ?: error(UiText.couldNotOpenOutputStream)
-        } ?: error(UiText.couldNotOpenInputStream)
+            } ?: localizedError(UiMessage.CouldNotOpenOutputStream)
+        } ?: localizedError(UiMessage.CouldNotOpenInputStream)
+    }
+
+    private fun localizedError(message: UiMessage, argument: String? = null): Nothing {
+        throw LocalizedExportException(message, argument)
     }
 
     private fun timestamp(): String =
@@ -364,3 +375,8 @@ class PhotoViewModel : ViewModel() {
         val rawExtensions = setOf("CR3", "CR2", "NEF", "ARW", "DNG", "RAF", "RW2", "ORF")
     }
 }
+
+private class LocalizedExportException(
+    val uiMessage: UiMessage,
+    val argument: String? = null
+) : IllegalStateException(uiMessage.name)

@@ -95,6 +95,8 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
     val snackbarHostState = remember { SnackbarHostState() }
     val updateRepository = remember { GitHubUpdateRepository() }
     var updateStatus by remember { mutableStateOf<AppUpdateStatus>(AppUpdateStatus.Idle) }
+    var language by remember { mutableStateOf(UiText.defaultLanguage) }
+    val strings = UiText.strings(language)
 
     BackHandler(enabled = currentScreen != Screen.FolderSelection) {
         viewModel.handleBack()
@@ -102,7 +104,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
 
     LaunchedEffect(selectionWarningMessage) {
         val message = selectionWarningMessage ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(message)
+        snackbarHostState.showSnackbar(strings.message(message))
         viewModel.clearSelectionWarning()
     }
 
@@ -133,7 +135,8 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                         if (currentScreen == Screen.Gallery) viewModel.goToReviewOrWarn()
                         else if (currentScreen == Screen.Review) viewModel.goToConfirmationOrWarn()
                     },
-                    buttonText = if (currentScreen == Screen.Gallery) UiText.reviewSelection else UiText.confirmSelection
+                    buttonText = if (currentScreen == Screen.Gallery) strings.reviewSelection else strings.confirmSelection,
+                    strings = strings
                 )
             }
         }
@@ -142,7 +145,9 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
             when (currentScreen) {
                 Screen.FolderSelection -> FolderSelectionScreen(onFolderSelected = {
                     launcher.launch(null)
-                }, updateStatus = updateStatus, onCheckUpdate = {
+                }, updateStatus = updateStatus, language = language, onLanguageSelected = { selectedLanguage ->
+                    language = selectedLanguage
+                }, strings = strings, onCheckUpdate = {
                     coroutineScope.launch {
                         updateStatus = AppUpdateStatus.Checking
                         runCatching {
@@ -161,13 +166,14 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                                 }
                             }
                         }.onFailure {
-                            updateStatus = AppUpdateStatus.Error(UiText.updateCheckFailed)
+                            updateStatus = AppUpdateStatus.Error
                         }
                     }
                 })
                 Screen.Gallery -> GalleryScreen(
                     photos = photos,
                     likedPhotos = likedPhotos,
+                    strings = strings,
                     onPhotoClick = { uri -> viewModel.openPhoto(uri) },
                     onLikeToggle = { uri -> viewModel.toggleLike(uri) }
                 )
@@ -178,6 +184,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                     selectedCount = likedPhotos.size,
                     originalPrice = basePrice,
                     payablePrice = totalDisplayPrice,
+                    strings = strings,
                     onBack = {
                         viewModel.navigateTo(
                             if (viewerSource == PhotoViewerSource.Review) Screen.Review else Screen.Gallery
@@ -189,6 +196,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                 )
                 Screen.Review -> ReviewScreen(
                     likedPhotos = likedPhotoItems,
+                    strings = strings,
                     onBack = { viewModel.navigateTo(Screen.Gallery) },
                     onPhotoClick = { uri -> viewModel.openLikedPhoto(uri) },
                     onRemoveLike = { uri -> viewModel.toggleLike(uri) }
@@ -196,6 +204,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                 Screen.Confirmation -> ConfirmationScreen(
                     summary = exportSummary,
                     exportStatus = exportStatus,
+                    strings = strings,
                     onBack = { viewModel.navigateTo(Screen.Review) },
                     onConfirmExport = {
                         coroutineScope.launch {
@@ -213,44 +222,78 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
 fun FolderSelectionScreen(
     onFolderSelected: () -> Unit,
     updateStatus: AppUpdateStatus,
+    language: AppLanguage,
+    onLanguageSelected: (AppLanguage) -> Unit,
+    strings: LocalizedStrings,
     onCheckUpdate: () -> Unit
 ) {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(24.dp)
     ) {
-        Text(UiText.folderTitle, style = MaterialTheme.typography.headlineMedium)
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = onFolderSelected) {
-            Text(UiText.selectFolder)
-        }
-        Spacer(modifier = Modifier.height(24.dp))
-        UpdateCheckButton(
-            updateStatus = updateStatus,
-            onClick = onCheckUpdate
+        LanguageSelector(
+            selectedLanguage = language,
+            strings = strings,
+            onLanguageSelected = onLanguageSelected,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
         )
+        Column(
+            modifier = Modifier.align(Alignment.Center),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(strings.folderTitle, style = MaterialTheme.typography.headlineMedium)
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = onFolderSelected) {
+                Text(strings.selectFolder)
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            UpdateCheckButton(
+                updateStatus = updateStatus,
+                strings = strings,
+                onClick = onCheckUpdate
+            )
+        }
+    }
+}
+
+@Composable
+fun LanguageSelector(
+    selectedLanguage: AppLanguage,
+    strings: LocalizedStrings,
+    onLanguageSelected: (AppLanguage) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    SingleChoiceSegmentedButtonRow(modifier = modifier) {
+        SegmentedButton(
+            selected = selectedLanguage == AppLanguage.Turkish,
+            onClick = { onLanguageSelected(AppLanguage.Turkish) },
+            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+        ) {
+            Text(strings.languageOptionTurkish)
+        }
+        SegmentedButton(
+            selected = selectedLanguage == AppLanguage.English,
+            onClick = { onLanguageSelected(AppLanguage.English) },
+            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+        ) {
+            Text(strings.languageOptionEnglish)
+        }
     }
 }
 
 @Composable
 fun UpdateCheckButton(
     updateStatus: AppUpdateStatus,
+    strings: LocalizedStrings,
     onClick: () -> Unit
 ) {
     val isBusy = updateStatus == AppUpdateStatus.Checking || updateStatus == AppUpdateStatus.Downloading
     val isUpToDate = updateStatus == AppUpdateStatus.UpToDate
-    val label = when (updateStatus) {
-        AppUpdateStatus.Idle -> UiText.checkUpdate
-        AppUpdateStatus.Checking -> UiText.checkingUpdate
-        AppUpdateStatus.UpToDate -> UiText.appUpToDate
-        is AppUpdateStatus.Available -> UiText.updateAvailable(updateStatus.versionName)
-        AppUpdateStatus.Downloading -> UiText.downloadingUpdate
-        AppUpdateStatus.ReadyToInstall -> UiText.readyToInstall
-        is AppUpdateStatus.Error -> updateStatus.message
-    }
+    val label = updateStatus.label(strings)
     val colors = if (isUpToDate) {
         ButtonDefaults.buttonColors(
             containerColor = Color(0xFF2E7D32),
@@ -285,6 +328,7 @@ fun UpdateCheckButton(
 fun GalleryScreen(
     photos: List<PhotoItemData>,
     likedPhotos: List<Uri>,
+    strings: LocalizedStrings,
     onPhotoClick: (Uri) -> Unit,
     onLikeToggle: (Uri) -> Unit
 ) {
@@ -296,6 +340,7 @@ fun GalleryScreen(
             PhotoItem(
                 uri = photo.uri,
                 isLiked = likedPhotos.contains(photo.uri),
+                strings = strings,
                 onClick = { onPhotoClick(photo.uri) },
                 onLikeToggle = { onLikeToggle(photo.uri) }
             )
@@ -304,7 +349,13 @@ fun GalleryScreen(
 }
 
 @Composable
-fun PhotoItem(uri: Uri, isLiked: Boolean, onClick: () -> Unit, onLikeToggle: () -> Unit) {
+fun PhotoItem(
+    uri: Uri,
+    isLiked: Boolean,
+    strings: LocalizedStrings,
+    onClick: () -> Unit,
+    onLikeToggle: () -> Unit
+) {
     Card(
         modifier = Modifier
             .padding(4.dp)
@@ -324,7 +375,7 @@ fun PhotoItem(uri: Uri, isLiked: Boolean, onClick: () -> Unit, onLikeToggle: () 
             ) {
                 Icon(
                     imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = UiText.like,
+                    contentDescription = strings.like,
                     tint = if (isLiked) Color.Red else Color.White
                 )
             }
@@ -340,6 +391,7 @@ fun PhotoDetailScreen(
     selectedCount: Int,
     originalPrice: Int,
     payablePrice: Int,
+    strings: LocalizedStrings,
     onBack: () -> Unit,
     onPhotoSelected: (Int) -> Unit,
     onLikeToggle: (Uri) -> Unit,
@@ -348,7 +400,7 @@ fun PhotoDetailScreen(
     if (photos.isEmpty() || selectedPhotoIndex !in photos.indices) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
             IconButton(onClick = onBack, modifier = Modifier.align(Alignment.TopStart).padding(16.dp)) {
-                Icon(Icons.Default.ArrowBack, contentDescription = UiText.back, tint = Color.White)
+                Icon(Icons.Default.ArrowBack, contentDescription = strings.back, tint = Color.White)
             }
         }
         return
@@ -433,7 +485,7 @@ fun PhotoDetailScreen(
                         contentColor = Color.White
                     )
                 ) {
-                    Icon(Icons.Default.ChevronLeft, contentDescription = UiText.previousPhoto)
+                    Icon(Icons.Default.ChevronLeft, contentDescription = strings.previousPhoto)
                 }
             }
 
@@ -451,7 +503,7 @@ fun PhotoDetailScreen(
                         contentColor = Color.White
                     )
                 ) {
-                    Icon(Icons.Default.ChevronRight, contentDescription = UiText.nextPhoto)
+                    Icon(Icons.Default.ChevronRight, contentDescription = strings.nextPhoto)
                 }
             }
 
@@ -459,6 +511,7 @@ fun PhotoDetailScreen(
                 photo = currentPhoto,
                 currentIndex = pagerState.currentPage,
                 totalCount = photos.size,
+                strings = strings,
                 onBack = onBack
             )
             FullscreenBottomBar(
@@ -466,6 +519,7 @@ fun PhotoDetailScreen(
                 originalPrice = originalPrice,
                 payablePrice = payablePrice,
                 isLiked = isLiked,
+                strings = strings,
                 onLikeToggle = { onLikeToggle(currentPhoto.uri) },
                 onReviewClick = onReviewClick,
                 modifier = Modifier.align(Alignment.BottomCenter)
@@ -564,6 +618,7 @@ fun FullscreenTopBar(
     photo: PhotoItemData,
     currentIndex: Int,
     totalCount: Int,
+    strings: LocalizedStrings,
     onBack: () -> Unit
 ) {
     Surface(
@@ -578,7 +633,7 @@ fun FullscreenTopBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = UiText.back, tint = Color.White)
+                Icon(Icons.Default.ArrowBack, contentDescription = strings.back, tint = Color.White)
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -605,6 +660,7 @@ fun FullscreenBottomBar(
     originalPrice: Int,
     payablePrice: Int,
     isLiked: Boolean,
+    strings: LocalizedStrings,
     onLikeToggle: () -> Unit,
     onReviewClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -625,10 +681,11 @@ fun FullscreenBottomBar(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(UiText.selectedCount(selectedCount), color = Color.White)
+                Text(strings.selectedCount(selectedCount), color = Color.White)
                 PriceSummary(
                     originalPrice = originalPrice,
                     payablePrice = payablePrice,
+                    strings = strings,
                     textColor = Color.White,
                     discountedColor = Color(0xFF81C784)
                 )
@@ -647,11 +704,11 @@ fun FullscreenBottomBar(
                 ) {
                     Icon(
                         imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        contentDescription = UiText.like
+                        contentDescription = strings.like
                     )
                 }
                 Button(onClick = onReviewClick) {
-                    Text(UiText.review)
+                    Text(strings.review)
                 }
             }
         }
@@ -662,6 +719,7 @@ fun FullscreenBottomBar(
 fun PriceSummary(
     originalPrice: Int,
     payablePrice: Int,
+    strings: LocalizedStrings,
     textColor: Color = LocalContentColor.current,
     discountedColor: Color = Color(0xFF2E7D32)
 ) {
@@ -674,22 +732,22 @@ fun PriceSummary(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
-            Text(UiText.total, color = textColor.copy(alpha = 0.72f), style = MaterialTheme.typography.labelMedium)
+            Text(strings.total, color = textColor.copy(alpha = 0.72f), style = MaterialTheme.typography.labelMedium)
             if (hasDiscount) {
                 Text(
-                    text = UiText.price(originalPrice),
+                    text = strings.price(originalPrice),
                     color = textColor.copy(alpha = 0.62f),
                     textDecoration = TextDecoration.LineThrough,
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
-                    text = UiText.price(payablePrice),
+                    text = strings.price(payablePrice),
                     color = discountedColor,
                     style = MaterialTheme.typography.titleLarge
                 )
             } else {
                 Text(
-                    text = UiText.price(payablePrice),
+                    text = strings.price(payablePrice),
                     color = textColor,
                     style = MaterialTheme.typography.titleLarge
                 )
@@ -701,15 +759,16 @@ fun PriceSummary(
 @Composable
 fun ReviewScreen(
     likedPhotos: List<PhotoItemData>,
+    strings: LocalizedStrings,
     onBack: () -> Unit,
     onPhotoClick: (Uri) -> Unit,
     onRemoveLike: (Uri) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(16.dp)) {
-            Button(onClick = onBack) { Text(UiText.backToGallery) }
+            Button(onClick = onBack) { Text(strings.backToGallery) }
             Spacer(modifier = Modifier.width(16.dp))
-            Text(UiText.reviewLikedPhotos, style = MaterialTheme.typography.titleLarge)
+            Text(strings.reviewLikedPhotos, style = MaterialTheme.typography.titleLarge)
         }
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
@@ -719,6 +778,7 @@ fun ReviewScreen(
                 PhotoItem(
                     uri = photo.uri,
                     isLiked = true,
+                    strings = strings,
                     onClick = { onPhotoClick(photo.uri) },
                     onLikeToggle = { onRemoveLike(photo.uri) }
                 )
@@ -731,6 +791,7 @@ fun ReviewScreen(
 fun ConfirmationScreen(
     summary: ExportSummary,
     exportStatus: ExportStatus,
+    strings: LocalizedStrings,
     onBack: () -> Unit,
     onConfirmExport: () -> Unit,
     onFinished: () -> Unit
@@ -742,24 +803,24 @@ fun ConfirmationScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(UiText.finalConfirmation, style = MaterialTheme.typography.headlineMedium)
+        Text(strings.finalConfirmation, style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(20.dp))
-        Text(UiText.selectedJpgCount(summary.selectedJpgCount), style = MaterialTheme.typography.titleMedium)
-        Text(UiText.matchingRawCount(summary.matchedRawCount), style = MaterialTheme.typography.titleMedium)
-        Text(UiText.totalFileCount(summary.totalFileCount), style = MaterialTheme.typography.titleLarge)
+        Text(strings.selectedJpgCount(summary.selectedJpgCount), style = MaterialTheme.typography.titleMedium)
+        Text(strings.matchingRawCount(summary.matchedRawCount), style = MaterialTheme.typography.titleMedium)
+        Text(strings.totalFileCount(summary.totalFileCount), style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(28.dp))
 
         when (exportStatus) {
             ExportStatus.Idle -> {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = onBack) {
-                        Text(UiText.back)
+                        Text(strings.back)
                     }
                     Button(
                         onClick = onConfirmExport,
                         enabled = summary.totalFileCount > 0
                     ) {
-                        Text(UiText.copyJpgAndRaw)
+                        Text(strings.copyJpgAndRaw)
                     }
                 }
             }
@@ -767,31 +828,31 @@ fun ConfirmationScreen(
             ExportStatus.Copying -> {
                 LinearProgressIndicator(modifier = Modifier.widthIn(min = 320.dp, max = 520.dp))
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(UiText.copyingSelectedFiles)
+                Text(strings.copyingSelectedFiles)
             }
 
             is ExportStatus.Success -> {
-                Text(UiText.exportComplete, color = Color(0xFF2E7D32), style = MaterialTheme.typography.titleLarge)
+                Text(strings.exportComplete, color = Color(0xFF2E7D32), style = MaterialTheme.typography.titleLarge)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(UiText.folderName(exportStatus.folderName), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(UiText.copiedFileCount(exportStatus.copiedFiles))
+                Text(strings.folderName(exportStatus.folderName), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(strings.copiedFileCount(exportStatus.copiedFiles))
                 Spacer(modifier = Modifier.height(20.dp))
                 Button(onClick = onFinished) {
-                    Text(UiText.finish)
+                    Text(strings.finish)
                 }
             }
 
             is ExportStatus.Error -> {
-                Text(UiText.exportFailed, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.titleLarge)
+                Text(strings.exportFailed, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.titleLarge)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(exportStatus.message, color = MaterialTheme.colorScheme.error)
+                Text(strings.message(exportStatus.message, exportStatus.argument), color = MaterialTheme.colorScheme.error)
                 Spacer(modifier = Modifier.height(20.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = onBack) {
-                        Text(UiText.back)
+                        Text(strings.back)
                     }
                     Button(onClick = onConfirmExport) {
-                        Text(UiText.retry)
+                        Text(strings.retry)
                     }
                 }
             }
@@ -805,7 +866,8 @@ fun BottomPriceBar(
     originalPrice: Int,
     payablePrice: Int,
     onReviewClick: () -> Unit,
-    buttonText: String
+    buttonText: String,
+    strings: LocalizedStrings
 ) {
     Surface(tonalElevation = 8.dp) {
         Row(
@@ -817,10 +879,11 @@ fun BottomPriceBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text(UiText.selectedCount(count))
+                Text(strings.selectedCount(count))
                 PriceSummary(
                     originalPrice = originalPrice,
-                    payablePrice = payablePrice
+                    payablePrice = payablePrice,
+                    strings = strings
                 )
             }
             Button(onClick = onReviewClick) {

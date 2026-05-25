@@ -204,7 +204,7 @@ class PhotoViewModelTest {
 
         assertEquals(false, continued)
         assertEquals(Screen.Gallery, viewModel.currentScreen)
-        assertEquals(UiText.selectAtLeastOnePhoto, viewModel.selectionWarningMessage)
+        assertEquals(UiMessage.SelectAtLeastOnePhoto, viewModel.selectionWarningMessage)
     }
 
     @Test
@@ -231,7 +231,7 @@ class PhotoViewModelTest {
 
         assertEquals(false, continued)
         assertEquals(Screen.Review, viewModel.currentScreen)
-        assertEquals(UiText.selectAtLeastOnePhoto, viewModel.selectionWarningMessage)
+        assertEquals(UiMessage.SelectAtLeastOnePhoto, viewModel.selectionWarningMessage)
     }
 
     @Test

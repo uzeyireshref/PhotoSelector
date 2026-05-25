@@ -32,7 +32,7 @@ sealed class AppUpdateStatus {
     data class Available(val versionName: String) : AppUpdateStatus()
     data object Downloading : AppUpdateStatus()
     data object ReadyToInstall : AppUpdateStatus()
-    data class Error(val message: String) : AppUpdateStatus()
+    data object Error : AppUpdateStatus()
 }
 
 object UpdatePolicy {
