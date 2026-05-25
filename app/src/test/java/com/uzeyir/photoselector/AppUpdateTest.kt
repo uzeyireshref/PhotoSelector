@@ -38,8 +38,8 @@ class AppUpdateTest {
               "body": "versionCode=2\nversionName=1.1.0\napkName=PhotoSelector-release.apk",
               "assets": [
                 {
-                  "name": "PhotoSelector-release.apk",
-                  "browser_download_url": "https://github.com/uzeyireshref/PhotoSelector/releases/download/v1.1.0/PhotoSelector-release.apk"
+                  "browser_download_url": "https://github.com/uzeyireshref/PhotoSelector/releases/download/v1.1.0/PhotoSelector-release.apk",
+                  "name": "PhotoSelector-release.apk"
                 }
               ]
             }

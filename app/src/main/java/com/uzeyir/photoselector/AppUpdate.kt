@@ -73,14 +73,22 @@ object GitHubReleaseParser {
     }
 
     private fun String.stringField(name: String): String {
-        val pattern = """"${Regex.escape(name)}"\s*:\s*"((?:\\.|[^"\\])*)"""".toRegex()
-        return pattern.find(this)?.groupValues?.get(1)
+        return stringFieldOrNull(name)
             ?: error("Missing release field: $name")
     }
 
     private fun String.findAssetDownloadUrl(apkName: String): String? {
-        val assetPattern = """\{[^{}]*"name"\s*:\s*"${Regex.escape(apkName)}"[^{}]*"browser_download_url"\s*:\s*"((?:\\.|[^"\\])*)"[^{}]*}""".toRegex()
-        return assetPattern.find(this)?.groupValues?.get(1)?.unescapeJsonText()
+        val assetObjectPattern = """\{[^{}]*}""".toRegex()
+        return assetObjectPattern.findAll(this)
+            .map { it.value }
+            .firstOrNull { assetJson -> assetJson.stringFieldOrNull("name") == apkName }
+            ?.stringFieldOrNull("browser_download_url")
+            ?.unescapeJsonText()
+    }
+
+    private fun String.stringFieldOrNull(name: String): String? {
+        val pattern = """"${Regex.escape(name)}"\s*:\s*"((?:\\.|[^"\\])*)"""".toRegex()
+        return pattern.find(this)?.groupValues?.get(1)
     }
 
     private fun String.unescapeJsonText(): String =
