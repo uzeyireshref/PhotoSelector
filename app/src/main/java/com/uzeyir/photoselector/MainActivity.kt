@@ -1,0 +1,831 @@
+package com.uzeyir.photoselector
+
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import androidx.activity.compose.BackHandler
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import com.uzeyir.photoselector.ui.theme.PhotoSelectorTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            PhotoSelectorTheme(dynamicColor = false) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    PhotoSelectorApp()
+                }
+            }
+        }
+    }
+}
+
+enum class Screen {
+    FolderSelection,
+    Gallery,
+    PhotoDetail,
+    Review,
+    Confirmation
+}
+
+@Composable
+fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
+    val context = LocalContext.current
+    val currentScreen = viewModel.currentScreen
+    val likedPhotos = viewModel.likedPhotos
+    val basePrice = viewModel.basePrice
+    val totalDisplayPrice = viewModel.totalDisplayPrice
+    val exportStatus = viewModel.exportStatus
+    val exportSummary = viewModel.exportSummary
+    val photoUris = viewModel.photoUris
+    val photos = viewModel.photos
+    val viewerPhotos = viewModel.viewerPhotos
+    val likedPhotoItems = viewModel.likedPhotoItems
+    val viewerSource = viewModel.viewerSource
+    val selectedPhotoIndex = viewModel.selectedPhotoIndex
+    val selectionWarningMessage = viewModel.selectionWarningMessage
+    val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val updateRepository = remember { GitHubUpdateRepository() }
+    var updateStatus by remember { mutableStateOf<AppUpdateStatus>(AppUpdateStatus.Idle) }
+
+    BackHandler(enabled = currentScreen != Screen.FolderSelection) {
+        viewModel.handleBack()
+    }
+
+    LaunchedEffect(selectionWarningMessage) {
+        val message = selectionWarningMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.clearSelectionWarning()
+    }
+
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        uri?.let {
+            // Take persistable permission
+            context.contentResolver.takePersistableUriPermission(
+                it,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            viewModel.loadPhotosFromFolder(it, context.contentResolver)
+            viewModel.navigateTo(Screen.Gallery)
+        }
+    }
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = {
+            if (currentScreen == Screen.Gallery || currentScreen == Screen.Review) {
+                BottomPriceBar(
+                    count = likedPhotos.size,
+                    originalPrice = basePrice,
+                    payablePrice = totalDisplayPrice,
+                    onReviewClick = {
+                        if (currentScreen == Screen.Gallery) viewModel.goToReviewOrWarn()
+                        else if (currentScreen == Screen.Review) viewModel.goToConfirmationOrWarn()
+                    },
+                    buttonText = if (currentScreen == Screen.Gallery) UiText.reviewSelection else UiText.confirmSelection
+                )
+            }
+        }
+    ) { innerPadding ->
+        Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+            when (currentScreen) {
+                Screen.FolderSelection -> FolderSelectionScreen(onFolderSelected = {
+                    launcher.launch(null)
+                }, updateStatus = updateStatus, onCheckUpdate = {
+                    coroutineScope.launch {
+                        updateStatus = AppUpdateStatus.Checking
+                        runCatching {
+                            val latestRelease = updateRepository.fetchLatestRelease()
+                            when (val decision = UpdatePolicy.decide(BuildConfig.VERSION_CODE, latestRelease)) {
+                                UpdateDecision.UpToDate -> {
+                                    updateStatus = AppUpdateStatus.UpToDate
+                                }
+                                is UpdateDecision.UpdateAvailable -> {
+                                    updateStatus = AppUpdateStatus.Available(decision.updateInfo.versionName)
+                                    delay(450)
+                                    updateStatus = AppUpdateStatus.Downloading
+                                    val apkFile = updateRepository.downloadApk(context, decision.updateInfo)
+                                    updateStatus = AppUpdateStatus.ReadyToInstall
+                                    ApkInstaller.openInstaller(context, apkFile)
+                                }
+                            }
+                        }.onFailure {
+                            updateStatus = AppUpdateStatus.Error(UiText.updateCheckFailed)
+                        }
+                    }
+                })
+                Screen.Gallery -> GalleryScreen(
+                    photos = photos,
+                    likedPhotos = likedPhotos,
+                    onPhotoClick = { uri -> viewModel.openPhoto(uri) },
+                    onLikeToggle = { uri -> viewModel.toggleLike(uri) }
+                )
+                Screen.PhotoDetail -> PhotoDetailScreen(
+                    photos = viewerPhotos,
+                    selectedPhotoIndex = selectedPhotoIndex,
+                    likedPhotos = likedPhotos,
+                    selectedCount = likedPhotos.size,
+                    originalPrice = basePrice,
+                    payablePrice = totalDisplayPrice,
+                    onBack = {
+                        viewModel.navigateTo(
+                            if (viewerSource == PhotoViewerSource.Review) Screen.Review else Screen.Gallery
+                        )
+                    },
+                    onPhotoSelected = { index -> viewModel.openPhotoAt(index) },
+                    onLikeToggle = { uri -> viewModel.toggleLike(uri) },
+                    onReviewClick = { viewModel.goToReviewOrWarn() }
+                )
+                Screen.Review -> ReviewScreen(
+                    likedPhotos = likedPhotoItems,
+                    onBack = { viewModel.navigateTo(Screen.Gallery) },
+                    onPhotoClick = { uri -> viewModel.openLikedPhoto(uri) },
+                    onRemoveLike = { uri -> viewModel.toggleLike(uri) }
+                )
+                Screen.Confirmation -> ConfirmationScreen(
+                    summary = exportSummary,
+                    exportStatus = exportStatus,
+                    onBack = { viewModel.navigateTo(Screen.Review) },
+                    onConfirmExport = {
+                        coroutineScope.launch {
+                            viewModel.exportSelection(context.contentResolver)
+                        }
+                    },
+                    onFinished = { viewModel.reset() }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun FolderSelectionScreen(
+    onFolderSelected: () -> Unit,
+    updateStatus: AppUpdateStatus,
+    onCheckUpdate: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(UiText.folderTitle, style = MaterialTheme.typography.headlineMedium)
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(onClick = onFolderSelected) {
+            Text(UiText.selectFolder)
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        UpdateCheckButton(
+            updateStatus = updateStatus,
+            onClick = onCheckUpdate
+        )
+    }
+}
+
+@Composable
+fun UpdateCheckButton(
+    updateStatus: AppUpdateStatus,
+    onClick: () -> Unit
+) {
+    val isBusy = updateStatus == AppUpdateStatus.Checking || updateStatus == AppUpdateStatus.Downloading
+    val isUpToDate = updateStatus == AppUpdateStatus.UpToDate
+    val label = when (updateStatus) {
+        AppUpdateStatus.Idle -> UiText.checkUpdate
+        AppUpdateStatus.Checking -> UiText.checkingUpdate
+        AppUpdateStatus.UpToDate -> UiText.appUpToDate
+        is AppUpdateStatus.Available -> UiText.updateAvailable(updateStatus.versionName)
+        AppUpdateStatus.Downloading -> UiText.downloadingUpdate
+        AppUpdateStatus.ReadyToInstall -> UiText.readyToInstall
+        is AppUpdateStatus.Error -> updateStatus.message
+    }
+    val colors = if (isUpToDate) {
+        ButtonDefaults.buttonColors(
+            containerColor = Color(0xFF2E7D32),
+            contentColor = Color.White
+        )
+    } else {
+        ButtonDefaults.buttonColors()
+    }
+
+    Button(
+        onClick = onClick,
+        enabled = !isBusy,
+        colors = colors,
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.widthIn(min = 240.dp)
+    ) {
+        if (isBusy) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                strokeWidth = 2.dp,
+                color = LocalContentColor.current
+            )
+        } else {
+            Icon(Icons.Default.SystemUpdate, contentDescription = null)
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(label)
+    }
+}
+
+@Composable
+fun GalleryScreen(
+    photos: List<PhotoItemData>,
+    likedPhotos: List<Uri>,
+    onPhotoClick: (Uri) -> Unit,
+    onLikeToggle: (Uri) -> Unit
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
+        contentPadding = PaddingValues(8.dp)
+    ) {
+        items(photos, key = { it.uri }) { photo ->
+            PhotoItem(
+                uri = photo.uri,
+                isLiked = likedPhotos.contains(photo.uri),
+                onClick = { onPhotoClick(photo.uri) },
+                onLikeToggle = { onLikeToggle(photo.uri) }
+            )
+        }
+    }
+}
+
+@Composable
+fun PhotoItem(uri: Uri, isLiked: Boolean, onClick: () -> Unit, onLikeToggle: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .padding(4.dp)
+            .aspectRatio(1f)
+            .clickable(onClick = onClick)
+    ) {
+        Box {
+            AsyncImage(
+                model = uri,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+            IconButton(
+                onClick = onLikeToggle,
+                modifier = Modifier.align(Alignment.TopEnd)
+            ) {
+                Icon(
+                    imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = UiText.like,
+                    tint = if (isLiked) Color.Red else Color.White
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun PhotoDetailScreen(
+    photos: List<PhotoItemData>,
+    selectedPhotoIndex: Int,
+    likedPhotos: List<Uri>,
+    selectedCount: Int,
+    originalPrice: Int,
+    payablePrice: Int,
+    onBack: () -> Unit,
+    onPhotoSelected: (Int) -> Unit,
+    onLikeToggle: (Uri) -> Unit,
+    onReviewClick: () -> Unit
+) {
+    if (photos.isEmpty() || selectedPhotoIndex !in photos.indices) {
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+            IconButton(onClick = onBack, modifier = Modifier.align(Alignment.TopStart).padding(16.dp)) {
+                Icon(Icons.Default.ArrowBack, contentDescription = UiText.back, tint = Color.White)
+            }
+        }
+        return
+    }
+
+    val pagerState = rememberPagerState(
+        initialPage = selectedPhotoIndex,
+        pageCount = { photos.size }
+    )
+    val coroutineScope = rememberCoroutineScope()
+    var controlsVisible by remember { mutableStateOf(true) }
+    var controlsWakeKey by remember { mutableIntStateOf(0) }
+
+    fun showControlsAndResetTimer() {
+        controlsVisible = true
+        controlsWakeKey += 1
+    }
+
+    fun toggleControls() {
+        controlsVisible = !controlsVisible
+        if (controlsVisible) {
+            controlsWakeKey += 1
+        }
+    }
+
+    fun keepVisibleControlsAlive() {
+        if (controlsVisible) {
+            controlsWakeKey += 1
+        }
+    }
+
+    LaunchedEffect(selectedPhotoIndex, photos.size) {
+        if (selectedPhotoIndex in photos.indices && pagerState.currentPage != selectedPhotoIndex) {
+            pagerState.scrollToPage(selectedPhotoIndex)
+        }
+    }
+
+    LaunchedEffect(pagerState.currentPage) {
+        if (pagerState.currentPage != selectedPhotoIndex) {
+            onPhotoSelected(pagerState.currentPage)
+        }
+    }
+
+    LaunchedEffect(controlsVisible, controlsWakeKey, pagerState.currentPage) {
+        if (controlsVisible) {
+            delay(2_500)
+            controlsVisible = false
+        }
+    }
+
+    val currentPhoto = photos[pagerState.currentPage]
+    val isLiked = likedPhotos.contains(currentPhoto.uri)
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+    ) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            ZoomablePhoto(
+                photo = photos[page],
+                onSingleTap = { toggleControls() },
+                onDoubleTapOrTransform = { keepVisibleControlsAlive() }
+            )
+        }
+
+        if (controlsVisible) {
+            if (pagerState.currentPage > 0) {
+                FilledIconButton(
+                    onClick = {
+                        showControlsAndResetTimer()
+                        coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 18.dp),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = Color.Black.copy(alpha = 0.42f),
+                        contentColor = Color.White
+                    )
+                ) {
+                    Icon(Icons.Default.ChevronLeft, contentDescription = UiText.previousPhoto)
+                }
+            }
+
+            if (pagerState.currentPage < photos.lastIndex) {
+                FilledIconButton(
+                    onClick = {
+                        showControlsAndResetTimer()
+                        coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 18.dp),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = Color.Black.copy(alpha = 0.42f),
+                        contentColor = Color.White
+                    )
+                ) {
+                    Icon(Icons.Default.ChevronRight, contentDescription = UiText.nextPhoto)
+                }
+            }
+
+            FullscreenTopBar(
+                photo = currentPhoto,
+                currentIndex = pagerState.currentPage,
+                totalCount = photos.size,
+                onBack = onBack
+            )
+            FullscreenBottomBar(
+                selectedCount = selectedCount,
+                originalPrice = originalPrice,
+                payablePrice = payablePrice,
+                isLiked = isLiked,
+                onLikeToggle = { onLikeToggle(currentPhoto.uri) },
+                onReviewClick = onReviewClick,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
+    }
+}
+
+@Composable
+fun ZoomablePhoto(
+    photo: PhotoItemData,
+    onSingleTap: () -> Unit,
+    onDoubleTapOrTransform: () -> Unit
+) {
+    var scale by remember(photo.uri) { mutableFloatStateOf(1f) }
+    var offsetX by remember(photo.uri) { mutableFloatStateOf(0f) }
+    var offsetY by remember(photo.uri) { mutableFloatStateOf(0f) }
+
+    fun resetZoom() {
+        scale = 1f
+        offsetX = 0f
+        offsetY = 0f
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(photo.uri) {
+                detectTapGestures(
+                    onTap = { onSingleTap() },
+                    onDoubleTap = {
+                        onDoubleTapOrTransform()
+                        if (scale > 1f) {
+                            resetZoom()
+                        } else {
+                            scale = 2.5f
+                        }
+                    }
+                )
+            }
+            .pointerInput(photo.uri) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    var pressed: Boolean
+                    do {
+                        val event = awaitPointerEvent()
+                        pressed = event.changes.any { it.pressed }
+                        val pointerCount = event.changes.count { it.pressed }
+                        if (!shouldHandlePhotoTransform(pointerCount = pointerCount, scale = scale)) {
+                            continue
+                        }
+
+                        val zoom = event.calculateZoom()
+                        val pan = event.calculatePan()
+                        if (zoom != 1f || pan != Offset.Zero) {
+                            onDoubleTapOrTransform()
+                        }
+
+                        scale = (scale * zoom).coerceIn(1f, 5f)
+                        if (scale > 1f) {
+                            offsetX += pan.x
+                            offsetY += pan.y
+                        } else {
+                            offsetX = 0f
+                            offsetY = 0f
+                        }
+
+                        event.changes.forEach { change ->
+                            if (change.positionChanged()) {
+                                change.consume()
+                            }
+                        }
+                    } while (pressed)
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        AsyncImage(
+            model = photo.uri,
+            contentDescription = photo.displayName,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer(
+                    scaleX = scale,
+                    scaleY = scale,
+                    translationX = offsetX,
+                    translationY = offsetY
+                ),
+            contentScale = ContentScale.Fit
+        )
+    }
+}
+
+@Composable
+fun FullscreenTopBar(
+    photo: PhotoItemData,
+    currentIndex: Int,
+    totalCount: Int,
+    onBack: () -> Unit
+) {
+    Surface(
+        color = Color.Black.copy(alpha = 0.56f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Default.ArrowBack, contentDescription = UiText.back, tint = Color.White)
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "${currentIndex + 1} / $totalCount",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = photo.displayName,
+                    color = Color.White.copy(alpha = 0.78f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun FullscreenBottomBar(
+    selectedCount: Int,
+    originalPrice: Int,
+    payablePrice: Int,
+    isLiked: Boolean,
+    onLikeToggle: () -> Unit,
+    onReviewClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = Color.Black.copy(alpha = 0.62f),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(UiText.selectedCount(selectedCount), color = Color.White)
+                PriceSummary(
+                    originalPrice = originalPrice,
+                    payablePrice = payablePrice,
+                    textColor = Color.White,
+                    discountedColor = Color(0xFF81C784)
+                )
+            }
+            Spacer(modifier = Modifier.width(14.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                FilledIconButton(
+                    onClick = onLikeToggle,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = if (isLiked) Color.White else Color.White.copy(alpha = 0.14f),
+                        contentColor = if (isLiked) Color.Red else Color.White
+                    )
+                ) {
+                    Icon(
+                        imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = UiText.like
+                    )
+                }
+                Button(onClick = onReviewClick) {
+                    Text(UiText.review)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PriceSummary(
+    originalPrice: Int,
+    payablePrice: Int,
+    textColor: Color = LocalContentColor.current,
+    discountedColor: Color = Color(0xFF2E7D32)
+) {
+    val hasDiscount = originalPrice > payablePrice
+    Surface(
+        color = textColor.copy(alpha = 0.08f),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Text(UiText.total, color = textColor.copy(alpha = 0.72f), style = MaterialTheme.typography.labelMedium)
+            if (hasDiscount) {
+                Text(
+                    text = UiText.price(originalPrice),
+                    color = textColor.copy(alpha = 0.62f),
+                    textDecoration = TextDecoration.LineThrough,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = UiText.price(payablePrice),
+                    color = discountedColor,
+                    style = MaterialTheme.typography.titleLarge
+                )
+            } else {
+                Text(
+                    text = UiText.price(payablePrice),
+                    color = textColor,
+                    style = MaterialTheme.typography.titleLarge
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ReviewScreen(
+    likedPhotos: List<PhotoItemData>,
+    onBack: () -> Unit,
+    onPhotoClick: (Uri) -> Unit,
+    onRemoveLike: (Uri) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(16.dp)) {
+            Button(onClick = onBack) { Text(UiText.backToGallery) }
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(UiText.reviewLikedPhotos, style = MaterialTheme.typography.titleLarge)
+        }
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3),
+            contentPadding = PaddingValues(8.dp)
+        ) {
+            items(likedPhotos, key = { it.uri }) { photo ->
+                PhotoItem(
+                    uri = photo.uri,
+                    isLiked = true,
+                    onClick = { onPhotoClick(photo.uri) },
+                    onLikeToggle = { onRemoveLike(photo.uri) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ConfirmationScreen(
+    summary: ExportSummary,
+    exportStatus: ExportStatus,
+    onBack: () -> Unit,
+    onConfirmExport: () -> Unit,
+    onFinished: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(UiText.finalConfirmation, style = MaterialTheme.typography.headlineMedium)
+        Spacer(modifier = Modifier.height(20.dp))
+        Text(UiText.selectedJpgCount(summary.selectedJpgCount), style = MaterialTheme.typography.titleMedium)
+        Text(UiText.matchingRawCount(summary.matchedRawCount), style = MaterialTheme.typography.titleMedium)
+        Text(UiText.totalFileCount(summary.totalFileCount), style = MaterialTheme.typography.titleLarge)
+        Spacer(modifier = Modifier.height(28.dp))
+
+        when (exportStatus) {
+            ExportStatus.Idle -> {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(onClick = onBack) {
+                        Text(UiText.back)
+                    }
+                    Button(
+                        onClick = onConfirmExport,
+                        enabled = summary.totalFileCount > 0
+                    ) {
+                        Text(UiText.copyJpgAndRaw)
+                    }
+                }
+            }
+
+            ExportStatus.Copying -> {
+                LinearProgressIndicator(modifier = Modifier.widthIn(min = 320.dp, max = 520.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(UiText.copyingSelectedFiles)
+            }
+
+            is ExportStatus.Success -> {
+                Text(UiText.exportComplete, color = Color(0xFF2E7D32), style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(UiText.folderName(exportStatus.folderName), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(UiText.copiedFileCount(exportStatus.copiedFiles))
+                Spacer(modifier = Modifier.height(20.dp))
+                Button(onClick = onFinished) {
+                    Text(UiText.finish)
+                }
+            }
+
+            is ExportStatus.Error -> {
+                Text(UiText.exportFailed, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(exportStatus.message, color = MaterialTheme.colorScheme.error)
+                Spacer(modifier = Modifier.height(20.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(onClick = onBack) {
+                        Text(UiText.back)
+                    }
+                    Button(onClick = onConfirmExport) {
+                        Text(UiText.retry)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BottomPriceBar(
+    count: Int,
+    originalPrice: Int,
+    payablePrice: Int,
+    onReviewClick: () -> Unit,
+    buttonText: String
+) {
+    Surface(tonalElevation = 8.dp) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(UiText.selectedCount(count))
+                PriceSummary(
+                    originalPrice = originalPrice,
+                    payablePrice = payablePrice
+                )
+            }
+            Button(onClick = onReviewClick) {
+                Text(buttonText)
+            }
+        }
+    }
+}
