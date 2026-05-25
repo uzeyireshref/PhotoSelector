@@ -54,6 +54,33 @@ class AppUpdateTest {
     }
 
     @Test
+    fun parsesReleaseAssetWhenGitHubAddsNestedUploaderObject() {
+        val json = """
+            {
+              "html_url": "https://github.com/uzeyireshref/PhotoSelector/releases/tag/v1.0.1",
+              "assets": [
+                {
+                  "url": "https://api.github.com/repos/uzeyireshref/PhotoSelector/releases/assets/429724034",
+                  "name": "app-release.apk",
+                  "uploader": {
+                    "login": "uzeyireshref",
+                    "id": 173052193
+                  },
+                  "browser_download_url": "https://github.com/uzeyireshref/PhotoSelector/releases/download/v1.0.1/app-release.apk"
+                }
+              ],
+              "body": "versionCode=2\nversionName=1.0.1\napkName=app-release.apk"
+            }
+        """.trimIndent()
+
+        val updateInfo = GitHubReleaseParser.parse(json)
+
+        assertEquals(2, updateInfo.versionCode)
+        assertEquals("1.0.1", updateInfo.versionName)
+        assertEquals("https://github.com/uzeyireshref/PhotoSelector/releases/download/v1.0.1/app-release.apk", updateInfo.apkUrl)
+    }
+
+    @Test
     fun brokenReleaseMetadataFails() {
         val json = """
             {

@@ -11,6 +11,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import org.json.JSONObject
 
 data class AppUpdateInfo(
     val versionCode: Int,
@@ -45,8 +46,9 @@ object UpdatePolicy {
 
 object GitHubReleaseParser {
     fun parse(json: String): AppUpdateInfo {
-        val body = json.stringField("body").unescapeJsonText()
-        val releasePageUrl = json.stringField("html_url")
+        val release = JSONObject(json)
+        val body = release.getString("body")
+        val releasePageUrl = release.getString("html_url")
         val metadata = body.lineSequence()
             .mapNotNull { line ->
                 val key = line.substringBefore('=', "").trim()
@@ -61,7 +63,7 @@ object GitHubReleaseParser {
             ?: error("Release metadata does not contain versionName.")
         val apkName = metadata["apkName"]
             ?: error("Release metadata does not contain apkName.")
-        val apkUrl = json.findAssetDownloadUrl(apkName)
+        val apkUrl = release.findAssetDownloadUrl(apkName)
             ?: error("Release asset not found: $apkName")
 
         return AppUpdateInfo(
@@ -72,32 +74,16 @@ object GitHubReleaseParser {
         )
     }
 
-    private fun String.stringField(name: String): String {
-        return stringFieldOrNull(name)
-            ?: error("Missing release field: $name")
+    private fun JSONObject.findAssetDownloadUrl(apkName: String): String? {
+        val assets = getJSONArray("assets")
+        for (index in 0 until assets.length()) {
+            val asset = assets.getJSONObject(index)
+            if (asset.optString("name") == apkName) {
+                return asset.optString("browser_download_url").takeIf { it.isNotBlank() }
+            }
+        }
+        return null
     }
-
-    private fun String.findAssetDownloadUrl(apkName: String): String? {
-        val assetObjectPattern = """\{[^{}]*}""".toRegex()
-        return assetObjectPattern.findAll(this)
-            .map { it.value }
-            .firstOrNull { assetJson -> assetJson.stringFieldOrNull("name") == apkName }
-            ?.stringFieldOrNull("browser_download_url")
-            ?.unescapeJsonText()
-    }
-
-    private fun String.stringFieldOrNull(name: String): String? {
-        val pattern = """"${Regex.escape(name)}"\s*:\s*"((?:\\.|[^"\\])*)"""".toRegex()
-        return pattern.find(this)?.groupValues?.get(1)
-    }
-
-    private fun String.unescapeJsonText(): String =
-        replace("\\n", "\n")
-            .replace("\\r", "\r")
-            .replace("\\t", "\t")
-            .replace("\\/", "/")
-            .replace("\\\"", "\"")
-            .replace("\\\\", "\\")
 }
 
 class GitHubUpdateRepository(
