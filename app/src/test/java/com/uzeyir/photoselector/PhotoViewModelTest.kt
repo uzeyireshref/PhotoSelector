@@ -1,8 +1,12 @@
 package com.uzeyir.photoselector
 
 import android.net.FakeUri
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class PhotoViewModelTest {
@@ -357,6 +361,34 @@ class PhotoViewModelTest {
         assertEquals(2, summary.selectedJpgCount)
         assertEquals(2, summary.matchedRawCount)
         assertEquals(4, summary.totalFileCount)
+    }
+
+    @Test
+    fun copyDocumentBytesCopiesNonEmptyStreams() {
+        val sourceBytes = byteArrayOf(1, 2, 3, 4)
+        val destination = ByteArrayOutputStream()
+
+        val copiedBytes = copyDocumentBytes(
+            input = ByteArrayInputStream(sourceBytes),
+            output = destination,
+            displayName = "IMG_0001.JPG"
+        )
+
+        assertEquals(4L, copiedBytes)
+        assertArrayEquals(sourceBytes, destination.toByteArray())
+    }
+
+    @Test
+    fun copyDocumentBytesRejectsZeroByteCopies() {
+        val error = assertThrows(IllegalStateException::class.java) {
+            copyDocumentBytes(
+                input = ByteArrayInputStream(ByteArray(0)),
+                output = ByteArrayOutputStream(),
+                displayName = "IMG_0001.JPG"
+            )
+        }
+
+        assertEquals(UiMessage.CopyVerificationFailed.name, error.message)
     }
 
     @Test

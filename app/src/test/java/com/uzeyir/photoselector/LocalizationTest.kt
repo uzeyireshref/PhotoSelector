@@ -50,6 +50,18 @@ class LocalizationTest {
     }
 
     @Test
+    fun copyVerificationErrorMessageIncludesFileName() {
+        assertEquals(
+            "IMG_0001.JPG doğru kopyalanamadı. Lütfen SD kart izinlerini kontrol edip tekrar deneyin.",
+            UiText.strings(AppLanguage.Turkish).message(UiMessage.CopyVerificationFailed, "IMG_0001.JPG")
+        )
+        assertEquals(
+            "IMG_0001.JPG was not copied correctly. Please check SD card permissions and try again.",
+            UiText.strings(AppLanguage.English).message(UiMessage.CopyVerificationFailed, "IMG_0001.JPG")
+        )
+    }
+
+    @Test
     fun updateErrorLabelIsLocalized() {
         assertEquals(
             "Güncelleme kontrol edilemedi",

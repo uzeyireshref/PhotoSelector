@@ -15,7 +15,8 @@ enum class UiMessage {
     CouldNotCreateExportFolder,
     CouldNotCreateFile,
     CouldNotOpenOutputStream,
-    CouldNotOpenInputStream
+    CouldNotOpenInputStream,
+    CopyVerificationFailed
 }
 
 data class LocalizedStrings(
@@ -70,7 +71,8 @@ data class LocalizedStrings(
     private val couldNotCreateExportFolder: String,
     private val couldNotOpenOutputStream: String,
     private val couldNotOpenInputStream: String,
-    private val couldNotCreateFile: (String) -> String
+    private val couldNotCreateFile: (String) -> String,
+    private val copyVerificationFailed: (String) -> String
 ) {
     fun price(amount: Int): String = "$amount TL"
     fun selectedCount(count: Int): String = "$selected: $count"
@@ -93,6 +95,7 @@ data class LocalizedStrings(
         UiMessage.CouldNotOpenOutputStream -> couldNotOpenOutputStream
         UiMessage.CouldNotOpenInputStream -> couldNotOpenInputStream
         UiMessage.CouldNotCreateFile -> couldNotCreateFile(argument.orEmpty())
+        UiMessage.CopyVerificationFailed -> copyVerificationFailed(argument.orEmpty())
     }
 }
 
@@ -161,7 +164,8 @@ internal object UiText {
         couldNotCreateExportFolder = "Dışa aktarma klasörü oluşturulamadı.",
         couldNotOpenOutputStream = "Hedef dosya açılamadı.",
         couldNotOpenInputStream = "Kaynak dosya açılamadı.",
-        couldNotCreateFile = { name -> "$name oluşturulamadı." }
+        couldNotCreateFile = { name -> "$name oluşturulamadı." },
+        copyVerificationFailed = { name -> "$name doğru kopyalanamadı. Lütfen SD kart izinlerini kontrol edip tekrar deneyin." }
     )
 
     internal val english = LocalizedStrings(
@@ -216,7 +220,8 @@ internal object UiText {
         couldNotCreateExportFolder = "Could not create export folder.",
         couldNotOpenOutputStream = "Could not open destination file.",
         couldNotOpenInputStream = "Could not open source file.",
-        couldNotCreateFile = { name -> "$name could not be created." }
+        couldNotCreateFile = { name -> "$name could not be created." },
+        copyVerificationFailed = { name -> "$name was not copied correctly. Please check SD card permissions and try again." }
     )
 
     fun strings(language: AppLanguage): LocalizedStrings = when (language) {

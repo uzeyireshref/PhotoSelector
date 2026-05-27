@@ -3,6 +3,7 @@ package com.uzeyir.photoselector
 import android.content.ContentResolver
 import android.net.Uri
 import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -12,6 +13,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.InputStream
+import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -489,7 +492,12 @@ class PhotoViewModel : ViewModel() {
                 source.mimeType.ifBlank { "application/octet-stream" },
                 source.displayName
             ) ?: localizedError(UiMessage.CouldNotCreateFile, source.displayName)
-            copyDocument(contentResolver, source.uri, destinationUri)
+            runCatching {
+                copyDocument(contentResolver, source.uri, destinationUri, source.displayName)
+            }.onFailure { error ->
+                runCatching { DocumentsContract.deleteDocument(contentResolver, destinationUri) }
+                throw error
+            }
         }
 
         return ExportStatus.Success(folderName = folderName, copiedFiles = filesToCopy.size)
@@ -505,12 +513,44 @@ class PhotoViewModel : ViewModel() {
             }
         )
 
-    private fun copyDocument(contentResolver: ContentResolver, sourceUri: Uri, destinationUri: Uri) {
+    private fun copyDocument(
+        contentResolver: ContentResolver,
+        sourceUri: Uri,
+        destinationUri: Uri,
+        displayName: String
+    ) {
         contentResolver.openInputStream(sourceUri)?.use { input ->
-            contentResolver.openOutputStream(destinationUri)?.use { output ->
-                input.copyTo(output)
+            val copiedBytes = contentResolver.openOutputStream(destinationUri, "wt")?.use { output ->
+                copyDocumentBytes(input, output, displayName)
             } ?: localizedError(UiMessage.CouldNotOpenOutputStream)
+            verifyCopiedDocumentSize(contentResolver, destinationUri, copiedBytes, displayName)
         } ?: localizedError(UiMessage.CouldNotOpenInputStream)
+    }
+
+    private fun verifyCopiedDocumentSize(
+        contentResolver: ContentResolver,
+        destinationUri: Uri,
+        copiedBytes: Long,
+        displayName: String
+    ) {
+        val reportedSize = contentResolver.query(
+            destinationUri,
+            arrayOf(OpenableColumns.SIZE),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val sizeColumn = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (sizeColumn >= 0 && !cursor.isNull(sizeColumn)) cursor.getLong(sizeColumn) else null
+            } else {
+                null
+            }
+        }
+
+        if (reportedSize != null && reportedSize >= 0L && reportedSize != copiedBytes) {
+            localizedError(UiMessage.CopyVerificationFailed, displayName)
+        }
     }
 
     private fun localizedError(message: UiMessage, argument: String? = null): Nothing {
@@ -529,3 +569,12 @@ private class LocalizedExportException(
     val uiMessage: UiMessage,
     val argument: String? = null
 ) : IllegalStateException(uiMessage.name)
+
+internal fun copyDocumentBytes(input: InputStream, output: OutputStream, displayName: String): Long {
+    val copiedBytes = input.copyTo(output)
+    output.flush()
+    if (copiedBytes <= 0L) {
+        throw LocalizedExportException(UiMessage.CopyVerificationFailed, displayName)
+    }
+    return copiedBytes
+}
