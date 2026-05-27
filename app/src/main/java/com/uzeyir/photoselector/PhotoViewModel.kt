@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -24,7 +25,8 @@ data class MediaItemData(
     val uri: Uri,
     val displayName: String,
     val mimeType: String = "image/jpeg",
-    val mediaType: MediaType = MediaType.Photo
+    val mediaType: MediaType = MediaType.Photo,
+    val lastModified: Long = 0
 )
 
 typealias PhotoItemData = MediaItemData
@@ -32,7 +34,8 @@ typealias PhotoItemData = MediaItemData
 data class FolderDocumentData(
     val uri: Uri,
     val displayName: String,
-    val mimeType: String
+    val mimeType: String,
+    val lastModified: Long = 0
 )
 
 data class ExportSummary(
@@ -78,9 +81,16 @@ fun FolderDocumentData.toMediaItemOrNull(): MediaItemData? {
         uri = uri,
         displayName = displayName,
         mimeType = mimeType,
-        mediaType = type
+        mediaType = type,
+        lastModified = lastModified
     )
 }
+
+fun sortMediaItemsForGallery(mediaItems: List<MediaItemData>): List<MediaItemData> =
+    mediaItems.sortedWith(
+        compareByDescending<MediaItemData> { it.lastModified }
+            .thenByDescending { it.displayName.lowercase(Locale.US) }
+    )
 
 private fun FolderDocumentData.isJpegDocument(): Boolean =
     mimeType.equals("image/jpeg", ignoreCase = true) ||
@@ -118,6 +128,7 @@ class PhotoViewModel : ViewModel() {
     val photoUris = mutableStateListOf<Uri>()
     val likedPhotos = mutableStateListOf<Uri>()
     val folderDocuments = mutableStateListOf<FolderDocumentData>()
+    private val rotationByUri = mutableStateMapOf<Uri, Int>()
     var selectedFolderUri by mutableStateOf<Uri?>(null)
         private set
     var exportStatus by mutableStateOf<ExportStatus>(ExportStatus.Idle)
@@ -271,11 +282,25 @@ class PhotoViewModel : ViewModel() {
 
     fun setMediaItems(newMediaItems: List<MediaItemData>) {
         photos.clear()
-        photos.addAll(newMediaItems)
+        photos.addAll(sortMediaItemsForGallery(newMediaItems))
         photoUris.clear()
-        photoUris.addAll(newMediaItems.map { it.uri })
+        photoUris.addAll(photos.map { it.uri })
+        rotationByUri.clear()
         if (selectedPhotoIndex !in photos.indices) {
             selectedPhotoIndex = -1
+        }
+    }
+
+    fun rotationFor(uri: Uri): Int =
+        rotationByUri[uri] ?: 0
+
+    fun rotateSelectedMedia() {
+        val uri = selectedPhotoUri ?: return
+        val nextRotation = (rotationFor(uri) + 90) % 360
+        if (nextRotation == 0) {
+            rotationByUri.remove(uri)
+        } else {
+            rotationByUri[uri] = nextRotation
         }
     }
 
@@ -393,28 +418,43 @@ class PhotoViewModel : ViewModel() {
         val projection = arrayOf(
             DocumentsContract.Document.COLUMN_DOCUMENT_ID,
             DocumentsContract.Document.COLUMN_MIME_TYPE,
-            DocumentsContract.Document.COLUMN_DISPLAY_NAME
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_LAST_MODIFIED
         )
 
         contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
             val idColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
             val mimeColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
             val nameColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+            val lastModifiedColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_LAST_MODIFIED)
+            val documents = mutableListOf<FolderDocumentData>()
+            val mediaItems = mutableListOf<MediaItemData>()
 
             while (cursor.moveToNext()) {
                 val id = cursor.getString(idColumn)
                 val mime = cursor.getString(mimeColumn).orEmpty()
                 val name = cursor.getString(nameColumn).orEmpty()
+                val lastModified = if (lastModifiedColumn >= 0 && !cursor.isNull(lastModifiedColumn)) {
+                    cursor.getLong(lastModifiedColumn)
+                } else {
+                    0L
+                }
                 val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, id)
-                val document = FolderDocumentData(uri = uri, displayName = name, mimeType = mime)
+                val document = FolderDocumentData(
+                    uri = uri,
+                    displayName = name,
+                    mimeType = mime,
+                    lastModified = lastModified
+                )
                 if (mime != DocumentsContract.Document.MIME_TYPE_DIR) {
-                    folderDocuments.add(document)
+                    documents.add(document)
                     document.toMediaItemOrNull()?.let { media ->
-                        photos.add(media)
-                        photoUris.add(media.uri)
+                        mediaItems.add(media)
                     }
                 }
             }
+            setFolderDocuments(documents)
+            setMediaItems(mediaItems)
         }
     }
 
@@ -459,6 +499,7 @@ class PhotoViewModel : ViewModel() {
         FolderDocumentData(
             uri = uri,
             displayName = displayName,
+            lastModified = lastModified,
             mimeType = mimeType.ifBlank {
                 if (mediaType == MediaType.Photo) "image/jpeg" else "application/octet-stream"
             }

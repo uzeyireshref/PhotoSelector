@@ -301,8 +301,8 @@ class PhotoViewModelTest {
 
         assertEquals(Screen.PhotoDetail, viewModel.currentScreen)
         assertEquals(PhotoViewerSource.Review, viewModel.viewerSource)
-        assertEquals(1, viewModel.selectedPhotoIndex)
-        assertEquals(listOf("photo_1.jpg", "photo_3.jpg"), viewModel.viewerPhotos.map { it.displayName })
+        assertEquals(0, viewModel.selectedPhotoIndex)
+        assertEquals(listOf("photo_3.jpg", "photo_1.jpg"), viewModel.viewerPhotos.map { it.displayName })
         assertEquals("photo_3.jpg", viewModel.selectedPhoto?.displayName)
     }
 
@@ -314,11 +314,11 @@ class PhotoViewModelTest {
         viewModel.toggleLike(photos[0].uri)
         viewModel.toggleLike(photos[2].uri)
 
-        viewModel.openLikedPhoto(photos[2].uri)
+        viewModel.openLikedPhoto(photos[0].uri)
         viewModel.showPreviousPhoto()
 
         assertEquals(0, viewModel.selectedPhotoIndex)
-        assertEquals("photo_1.jpg", viewModel.selectedPhoto?.displayName)
+        assertEquals("photo_3.jpg", viewModel.selectedPhoto?.displayName)
     }
 
     @Test
@@ -409,11 +409,11 @@ class PhotoViewModelTest {
     @Test
     fun mediaClassificationIncludesJpgAndVideosOnly() {
         val documents = listOf(
-            testDocument("IMG_0001.JPG", "image/jpeg"),
-            testDocument("clip.MP4", ""),
-            testDocument("movie.mov", "application/octet-stream"),
-            testDocument("IMG_0001.CR3", "application/octet-stream"),
-            testDocument("notes.txt", "text/plain")
+            testDocument("IMG_0001.JPG", "image/jpeg", lastModified = 10),
+            testDocument("clip.MP4", "", lastModified = 20),
+            testDocument("movie.mov", "application/octet-stream", lastModified = 30),
+            testDocument("IMG_0001.CR3", "application/octet-stream", lastModified = 40),
+            testDocument("notes.txt", "text/plain", lastModified = 50)
         )
 
         val media = documents.mapNotNull { it.toMediaItemOrNull() }
@@ -428,6 +428,86 @@ class PhotoViewModelTest {
         )
     }
 
+    @Test
+    fun galleryMediaIsSortedByNewestLastModifiedFirst() {
+        val media = listOf(
+            testPhoto("old.jpg", lastModified = 100),
+            testVideo("new.mp4", lastModified = 300),
+            testPhoto("middle.jpg", lastModified = 200)
+        )
+
+        val sorted = sortMediaItemsForGallery(media)
+
+        assertEquals(listOf("new.mp4", "middle.jpg", "old.jpg"), sorted.map { it.displayName })
+    }
+
+    @Test
+    fun galleryMediaWithNoLastModifiedFallsBackToReverseDisplayName() {
+        val media = listOf(
+            testPhoto("IMG_0001.JPG", lastModified = 0),
+            testPhoto("IMG_0003.JPG", lastModified = 0),
+            testVideo("IMG_0002.MP4", lastModified = 0)
+        )
+
+        val sorted = sortMediaItemsForGallery(media)
+
+        assertEquals(listOf("IMG_0003.JPG", "IMG_0002.MP4", "IMG_0001.JPG"), sorted.map { it.displayName })
+    }
+
+    @Test
+    fun rotateSelectedMediaCyclesByNinetyDegrees() {
+        val viewModel = PhotoViewModel()
+        val photos = testPhotos(1)
+        viewModel.setPhotos(photos)
+        viewModel.openPhotoAt(0)
+
+        viewModel.rotateSelectedMedia()
+        assertEquals(90, viewModel.rotationFor(photos[0].uri))
+
+        viewModel.rotateSelectedMedia()
+        assertEquals(180, viewModel.rotationFor(photos[0].uri))
+
+        viewModel.rotateSelectedMedia()
+        assertEquals(270, viewModel.rotationFor(photos[0].uri))
+
+        viewModel.rotateSelectedMedia()
+        assertEquals(0, viewModel.rotationFor(photos[0].uri))
+    }
+
+    @Test
+    fun setMediaItemsClearsSessionRotation() {
+        val viewModel = PhotoViewModel()
+        val firstPhoto = testPhoto("first.jpg")
+        viewModel.setMediaItems(listOf(firstPhoto))
+        viewModel.openPhotoAt(0)
+        viewModel.rotateSelectedMedia()
+
+        viewModel.setMediaItems(listOf(testPhoto("second.jpg")))
+
+        assertEquals(0, viewModel.rotationFor(firstPhoto.uri))
+    }
+
+    @Test
+    fun lastFolderStoreResolvesOnlyPersistedReadPermission() {
+        val store = FakeLastFolderStore()
+        val folderUri = "content://tree/sdcard"
+        store.save(folderUri)
+
+        assertEquals(folderUri, store.resolveAvailableFolder(setOf(folderUri)))
+        assertEquals(null, store.resolveAvailableFolder(emptySet()))
+    }
+
+    @Test
+    fun lastFolderStoreClearsUnavailableFolder() {
+        val store = FakeLastFolderStore()
+        store.save("content://tree/missing")
+
+        val resolved = store.resolveAvailableFolder(emptySet())
+
+        assertEquals(null, resolved)
+        assertEquals(null, store.savedUri)
+    }
+
     private fun testPhotos(count: Int): List<MediaItemData> =
         (1..count).map { index ->
             testPhoto("photo_$index.jpg")
@@ -438,29 +518,55 @@ class PhotoViewModelTest {
             testVideo("video_$index.mp4")
         }
 
-    private fun testPhoto(displayName: String): MediaItemData =
+    private fun testPhoto(displayName: String, lastModified: Long = 0): MediaItemData =
         MediaItemData(
             uri = FakeUri(displayName),
             displayName = displayName,
             mimeType = "image/jpeg",
-            mediaType = MediaType.Photo
+            mediaType = MediaType.Photo,
+            lastModified = lastModified
         )
 
-    private fun testVideo(displayName: String): MediaItemData =
+    private fun testVideo(displayName: String, lastModified: Long = 0): MediaItemData =
         MediaItemData(
             uri = FakeUri(displayName),
             displayName = displayName,
             mimeType = "video/mp4",
-            mediaType = MediaType.Video
+            mediaType = MediaType.Video,
+            lastModified = lastModified
         )
 
     private fun testDocument(
         displayName: String,
-        mimeType: String = "application/octet-stream"
+        mimeType: String = "application/octet-stream",
+        lastModified: Long = 0
     ): FolderDocumentData =
         FolderDocumentData(
             uri = FakeUri(displayName),
             displayName = displayName,
-            mimeType = mimeType
+            mimeType = mimeType,
+            lastModified = lastModified
         )
+
+    private class FakeLastFolderStore : LastFolderStore {
+        var savedUri: String? = null
+
+        override fun save(folderUri: String) {
+            savedUri = folderUri
+        }
+
+        override fun clear() {
+            savedUri = null
+        }
+
+        override fun resolveAvailableFolder(persistedReadUris: Set<String>): String? {
+            val current = savedUri
+            return if (current != null && current in persistedReadUris) {
+                current
+            } else {
+                clear()
+                null
+            }
+        }
+    }
 }

@@ -1,5 +1,6 @@
 package com.uzeyir.photoselector
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -29,6 +30,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Favorite
@@ -101,6 +103,14 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val updateRepository = remember { GitHubUpdateRepository() }
+    val lastFolderStore = remember(context) {
+        SharedPreferencesLastFolderStore(
+            context.getSharedPreferences(
+                SharedPreferencesLastFolderStore.PREFERENCES_NAME,
+                Context.MODE_PRIVATE
+            )
+        )
+    }
     var updateStatus by remember { mutableStateOf<AppUpdateStatus>(AppUpdateStatus.Idle) }
     var language by remember { mutableStateOf(UiText.defaultLanguage) }
     val strings = UiText.strings(language)
@@ -116,12 +126,24 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
         viewModel.clearSelectionWarning()
     }
 
+    LaunchedEffect(Unit) {
+        val persistedReadUris = context.contentResolver.persistedUriPermissions
+            .filter { it.isReadPermission }
+            .map { it.uri.toString() }
+            .toSet()
+        lastFolderStore.resolveAvailableFolder(persistedReadUris)?.let { savedFolder ->
+            viewModel.loadMediaFromFolder(Uri.parse(savedFolder), context.contentResolver)
+            viewModel.navigateTo(Screen.Gallery)
+        }
+    }
+
     fun handleSelectedFolder(uri: Uri?) {
         uri?.let {
             context.contentResolver.takePersistableUriPermission(
                 it,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             )
+            lastFolderStore.save(it.toString())
             viewModel.loadMediaFromFolder(it, context.contentResolver)
             viewModel.navigateTo(Screen.Gallery)
         }
@@ -273,6 +295,8 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                         )
                     },
                     onPhotoSelected = { index -> viewModel.openPhotoAt(index) },
+                    rotationFor = { uri -> viewModel.rotationFor(uri) },
+                    onRotate = { viewModel.rotateSelectedMedia() },
                     onLikeToggle = { uri -> viewModel.toggleLike(uri) },
                     onReviewClick = { viewModel.goToReviewOrWarn() }
                 )
@@ -512,6 +536,8 @@ fun PhotoDetailScreen(
     strings: LocalizedStrings,
     onBack: () -> Unit,
     onPhotoSelected: (Int) -> Unit,
+    rotationFor: (Uri) -> Int,
+    onRotate: () -> Unit,
     onLikeToggle: (Uri) -> Unit,
     onReviewClick: () -> Unit
 ) {
@@ -531,6 +557,9 @@ fun PhotoDetailScreen(
     val coroutineScope = rememberCoroutineScope()
     var controlsVisible by remember { mutableStateOf(true) }
     var controlsWakeKey by remember { mutableIntStateOf(0) }
+    val currentPhoto = photos[pagerState.currentPage]
+    val isCurrentVideo = currentPhoto.mediaType == MediaType.Video
+    val isLiked = likedPhotos.contains(currentPhoto.uri)
 
     fun showControlsAndResetTimer() {
         controlsVisible = true
@@ -562,15 +591,12 @@ fun PhotoDetailScreen(
         }
     }
 
-    LaunchedEffect(controlsVisible, controlsWakeKey, pagerState.currentPage) {
-        if (controlsVisible) {
+    LaunchedEffect(controlsVisible, controlsWakeKey, pagerState.currentPage, isCurrentVideo) {
+        if (controlsVisible && !isCurrentVideo) {
             delay(2_500)
             controlsVisible = false
         }
     }
-
-    val currentPhoto = photos[pagerState.currentPage]
-    val isLiked = likedPhotos.contains(currentPhoto.uri)
 
     Box(
         modifier = Modifier
@@ -582,22 +608,25 @@ fun PhotoDetailScreen(
             modifier = Modifier.fillMaxSize()
         ) { page ->
             val media = photos[page]
+            val rotationDegrees = rotationFor(media.uri)
             if (media.mediaType == MediaType.Video) {
                 VideoPlayer(
                     media = media,
                     isActive = page == pagerState.currentPage,
+                    rotationDegrees = rotationDegrees,
                     onSingleTap = { toggleControls() }
                 )
             } else {
                 ZoomablePhoto(
                     photo = media,
+                    rotationDegrees = rotationDegrees,
                     onSingleTap = { toggleControls() },
                     onDoubleTapOrTransform = { keepVisibleControlsAlive() }
                 )
             }
         }
 
-        if (controlsVisible) {
+        if (controlsVisible || isCurrentVideo) {
             if (pagerState.currentPage > 0) {
                 FilledIconButton(
                     onClick = {
@@ -639,8 +668,23 @@ fun PhotoDetailScreen(
                 currentIndex = pagerState.currentPage,
                 totalCount = photos.size,
                 strings = strings,
+                onRotate = onRotate,
                 onBack = onBack
             )
+        }
+
+        if (isCurrentVideo) {
+            VideoCompactBottomBar(
+                photoCount = photoCount,
+                videoCount = videoCount,
+                totalPayablePrice = totalPayablePrice,
+                isLiked = isLiked,
+                strings = strings,
+                onLikeToggle = { onLikeToggle(currentPhoto.uri) },
+                onReviewClick = onReviewClick,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        } else if (controlsVisible) {
             FullscreenBottomBar(
                 photoCount = photoCount,
                 videoCount = videoCount,
@@ -662,6 +706,7 @@ fun PhotoDetailScreen(
 @Composable
 fun ZoomablePhoto(
     photo: PhotoItemData,
+    rotationDegrees: Int,
     onSingleTap: () -> Unit,
     onDoubleTapOrTransform: () -> Unit
 ) {
@@ -737,7 +782,8 @@ fun ZoomablePhoto(
                     scaleX = scale,
                     scaleY = scale,
                     translationX = offsetX,
-                    translationY = offsetY
+                    translationY = offsetY,
+                    rotationZ = rotationDegrees.toFloat()
                 ),
             contentScale = ContentScale.Fit
         )
@@ -748,6 +794,7 @@ fun ZoomablePhoto(
 fun VideoPlayer(
     media: MediaItemData,
     isActive: Boolean,
+    rotationDegrees: Int,
     onSingleTap: () -> Unit
 ) {
     val context = LocalContext.current
@@ -791,7 +838,9 @@ fun VideoPlayer(
             update = { playerView ->
                 playerView.player = player
             },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer(rotationZ = rotationDegrees.toFloat())
         )
     }
 }
@@ -802,6 +851,7 @@ fun FullscreenTopBar(
     currentIndex: Int,
     totalCount: Int,
     strings: LocalizedStrings,
+    onRotate: () -> Unit,
     onBack: () -> Unit
 ) {
     Surface(
@@ -832,6 +882,9 @@ fun FullscreenTopBar(
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium
                 )
+            }
+            IconButton(onClick = onRotate) {
+                Icon(Icons.AutoMirrored.Filled.RotateRight, contentDescription = strings.rotate, tint = Color.White)
             }
         }
     }
@@ -902,6 +955,60 @@ fun FullscreenBottomBar(
                 Button(onClick = onReviewClick) {
                     Text(strings.review)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun VideoCompactBottomBar(
+    photoCount: Int,
+    videoCount: Int,
+    totalPayablePrice: Int,
+    isLiked: Boolean,
+    strings: LocalizedStrings,
+    onLikeToggle: () -> Unit,
+    onReviewClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = Color.Black.copy(alpha = 0.68f),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 18.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "${strings.photo}: $photoCount  ${strings.video}: $videoCount",
+                    color = Color.White.copy(alpha = 0.78f),
+                    style = MaterialTheme.typography.labelLarge
+                )
+                Text(
+                    text = strings.price(totalPayablePrice),
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+            FilledIconButton(
+                onClick = onLikeToggle,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = if (isLiked) Color.White else Color.White.copy(alpha = 0.14f),
+                    contentColor = if (isLiked) Color.Red else Color.White
+                )
+            ) {
+                Icon(
+                    imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = strings.like
+                )
+            }
+            Button(onClick = onReviewClick) {
+                Text(strings.review)
             }
         }
     }
