@@ -4,6 +4,7 @@ import android.content.ContentResolver
 import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -14,10 +15,19 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-data class PhotoItemData(
+enum class MediaType {
+    Photo,
+    Video
+}
+
+data class MediaItemData(
     val uri: Uri,
-    val displayName: String
+    val displayName: String,
+    val mimeType: String = "image/jpeg",
+    val mediaType: MediaType = MediaType.Photo
 )
+
+typealias PhotoItemData = MediaItemData
 
 data class FolderDocumentData(
     val uri: Uri,
@@ -27,10 +37,11 @@ data class FolderDocumentData(
 
 data class ExportSummary(
     val selectedJpgCount: Int,
-    val matchedRawCount: Int
+    val matchedRawCount: Int,
+    val selectedVideoCount: Int = 0
 ) {
     val totalFileCount: Int
-        get() = selectedJpgCount + matchedRawCount
+        get() = selectedJpgCount + matchedRawCount + selectedVideoCount
 }
 
 data class PricingDiscountTier(
@@ -56,9 +67,54 @@ enum class PhotoViewerSource {
     Review
 }
 
+fun FolderDocumentData.toMediaItemOrNull(): MediaItemData? {
+    val type = when {
+        isJpegDocument() -> MediaType.Photo
+        isVideoDocument() -> MediaType.Video
+        else -> null
+    } ?: return null
+
+    return MediaItemData(
+        uri = uri,
+        displayName = displayName,
+        mimeType = mimeType,
+        mediaType = type
+    )
+}
+
+private fun FolderDocumentData.isJpegDocument(): Boolean =
+    mimeType.equals("image/jpeg", ignoreCase = true) ||
+        displayName.extension().lowercase(Locale.US) in setOf("jpg", "jpeg")
+
+private fun FolderDocumentData.isVideoDocument(): Boolean =
+    mimeType.startsWith("video/", ignoreCase = true) ||
+        displayName.extension().lowercase(Locale.US) in videoExtensions
+
+private fun String.baseName(): String =
+    substringBeforeLast('.', this)
+
+private fun String.extension(): String =
+    substringAfterLast('.', "")
+
+private val videoExtensions = setOf(
+    "mp4",
+    "m4v",
+    "mov",
+    "avi",
+    "mkv",
+    "webm",
+    "3gp",
+    "3gpp",
+    "mts",
+    "m2ts",
+    "ts",
+    "wmv",
+    "flv"
+)
+
 class PhotoViewModel : ViewModel() {
     var currentScreen by mutableStateOf(Screen.FolderSelection)
-    val photos = mutableStateListOf<PhotoItemData>()
+    val photos = mutableStateListOf<MediaItemData>()
     val photoUris = mutableStateListOf<Uri>()
     val likedPhotos = mutableStateListOf<Uri>()
     val folderDocuments = mutableStateListOf<FolderDocumentData>()
@@ -70,19 +126,25 @@ class PhotoViewModel : ViewModel() {
         private set
     var viewerSource by mutableStateOf(PhotoViewerSource.Gallery)
         private set
-    var selectedPhotoIndex by mutableStateOf(-1)
+    var selectedPhotoIndex by mutableIntStateOf(-1)
         private set
 
-    val likedPhotoItems: List<PhotoItemData>
+    val likedPhotoItems: List<MediaItemData>
+        get() = photos.filter { likedPhotos.contains(it.uri) && it.mediaType == MediaType.Photo }
+
+    val likedVideoItems: List<MediaItemData>
+        get() = photos.filter { likedPhotos.contains(it.uri) && it.mediaType == MediaType.Video }
+
+    val likedMediaItems: List<MediaItemData>
         get() = photos.filter { likedPhotos.contains(it.uri) }
 
-    val viewerPhotos: List<PhotoItemData>
+    val viewerPhotos: List<MediaItemData>
         get() = when (viewerSource) {
             PhotoViewerSource.Gallery -> photos
-            PhotoViewerSource.Review -> likedPhotoItems
+            PhotoViewerSource.Review -> likedMediaItems
         }
 
-    val selectedPhoto: PhotoItemData?
+    val selectedPhoto: MediaItemData?
         get() = viewerPhotos.getOrNull(selectedPhotoIndex)
 
     val selectedPhotoUri: Uri?
@@ -91,11 +153,13 @@ class PhotoViewModel : ViewModel() {
     val exportSummary: ExportSummary
         get() = ExportSummary(
             selectedJpgCount = likedPhotoItems.size,
-            matchedRawCount = likedPhotoItems.sumOf { matchingRawFilesFor(it).size }
+            matchedRawCount = likedPhotoItems.sumOf { matchingRawFilesFor(it).size },
+            selectedVideoCount = likedVideoItems.size
         )
-    
+
     private val pricePerPhoto = 300
-    private val maxBillablePhotos = 10
+    private val pricePerVideo = 1000
+    private val maxBillableItems = 10
     private val discountTiers = listOf(
         PricingDiscountTier(photoCount = 4, discountPercent = 5),
         PricingDiscountTier(photoCount = 5, discountPercent = 10),
@@ -105,23 +169,49 @@ class PhotoViewModel : ViewModel() {
         PricingDiscountTier(photoCount = 9, discountPercent = 30),
         PricingDiscountTier(photoCount = 10, discountPercent = 35)
     )
-    
+
+    val selectedPhotoCount: Int
+        get() = likedPhotoItems.size
+
+    val selectedVideoCount: Int
+        get() = likedVideoItems.size
+
+    val photoBasePrice: Int
+        get() = selectedPhotoCount * pricePerPhoto
+
+    val photoDisplayPrice: Int
+        get() = discountedPrice(selectedPhotoCount, pricePerPhoto)
+
+    val photoDiscount: Int
+        get() = photoBasePrice - photoDisplayPrice
+
+    val videoBasePrice: Int
+        get() = selectedVideoCount * pricePerVideo
+
+    val videoDisplayPrice: Int
+        get() = discountedPrice(selectedVideoCount, pricePerVideo)
+
+    val videoDiscount: Int
+        get() = videoBasePrice - videoDisplayPrice
+
     val basePrice: Int
-        get() = likedPhotos.size * pricePerPhoto
-        
+        get() = photoBasePrice + videoBasePrice
+
     val discount: Int
         get() = basePrice - totalDisplayPrice
-        
+
     val totalDisplayPrice: Int
-        get() {
-            val billablePhotoCount = likedPhotos.size.coerceAtMost(maxBillablePhotos)
-            val subtotal = billablePhotoCount * pricePerPhoto
-            val discountPercent = discountTiers
-                .lastOrNull { billablePhotoCount >= it.photoCount }
-                ?.discountPercent
-                ?: 0
-            return subtotal * (100 - discountPercent) / 100
-        }
+        get() = photoDisplayPrice + videoDisplayPrice
+
+    private fun discountedPrice(count: Int, unitPrice: Int): Int {
+        val billableCount = count.coerceAtMost(maxBillableItems)
+        val subtotal = billableCount * unitPrice
+        val discountPercent = discountTiers
+            .lastOrNull { billableCount >= it.photoCount }
+            ?.discountPercent
+            ?: 0
+        return subtotal * (100 - discountPercent) / 100
+    }
 
     fun toggleLike(uri: Uri) {
         if (likedPhotos.contains(uri)) {
@@ -131,7 +221,7 @@ class PhotoViewModel : ViewModel() {
         }
         normalizeReviewViewerSelection()
     }
-    
+
     fun navigateTo(screen: Screen) {
         currentScreen = screen
     }
@@ -156,6 +246,10 @@ class PhotoViewModel : ViewModel() {
         return true
     }
 
+    fun warn(message: UiMessage) {
+        selectionWarningMessage = message
+    }
+
     fun clearSelectionWarning() {
         selectionWarningMessage = null
     }
@@ -172,10 +266,14 @@ class PhotoViewModel : ViewModel() {
     }
 
     fun setPhotos(newPhotos: List<PhotoItemData>) {
+        setMediaItems(newPhotos)
+    }
+
+    fun setMediaItems(newMediaItems: List<MediaItemData>) {
         photos.clear()
-        photos.addAll(newPhotos)
+        photos.addAll(newMediaItems)
         photoUris.clear()
-        photoUris.addAll(newPhotos.map { it.uri })
+        photoUris.addAll(newMediaItems.map { it.uri })
         if (selectedPhotoIndex !in photos.indices) {
             selectedPhotoIndex = -1
         }
@@ -193,7 +291,7 @@ class PhotoViewModel : ViewModel() {
 
     fun openLikedPhoto(uri: Uri) {
         viewerSource = PhotoViewerSource.Review
-        openPhotoAt(likedPhotoItems.indexOfFirst { it.uri == uri })
+        openPhotoAt(likedMediaItems.indexOfFirst { it.uri == uri })
     }
 
     fun openPhotoAt(index: Int) {
@@ -213,10 +311,10 @@ class PhotoViewModel : ViewModel() {
             selectedPhotoIndex -= 1
         }
     }
-    
+
     fun reset() {
         likedPhotos.clear()
-        setPhotos(emptyList())
+        setMediaItems(emptyList())
         setFolderDocuments(emptyList())
         selectedFolderUri = null
         selectedPhotoIndex = -1
@@ -227,17 +325,18 @@ class PhotoViewModel : ViewModel() {
 
     private fun normalizeReviewViewerSelection() {
         if (currentScreen != Screen.PhotoDetail || viewerSource != PhotoViewerSource.Review) return
-        if (likedPhotoItems.isEmpty()) {
+        if (likedMediaItems.isEmpty()) {
             selectedPhotoIndex = -1
             currentScreen = Screen.Review
             return
         }
-        if (selectedPhotoIndex > likedPhotoItems.lastIndex) {
-            selectedPhotoIndex = likedPhotoItems.lastIndex
+        if (selectedPhotoIndex > likedMediaItems.lastIndex) {
+            selectedPhotoIndex = likedMediaItems.lastIndex
         }
     }
 
-    fun matchingRawFilesFor(photo: PhotoItemData): List<FolderDocumentData> {
+    fun matchingRawFilesFor(photo: MediaItemData): List<FolderDocumentData> {
+        if (photo.mediaType != MediaType.Photo) return emptyList()
         val photoBaseName = photo.displayName.baseName()
         return folderDocuments
             .filter { document ->
@@ -249,12 +348,12 @@ class PhotoViewModel : ViewModel() {
 
     suspend fun exportSelection(contentResolver: ContentResolver): ExportStatus {
         val treeUri = selectedFolderUri
-        val selectedPhotos = likedPhotoItems
+        val selectedMedia = likedMediaItems
         if (treeUri == null) {
             exportStatus = ExportStatus.Error(UiMessage.NoSourceFolder)
             return exportStatus
         }
-        if (selectedPhotos.isEmpty()) {
+        if (selectedMedia.isEmpty()) {
             exportStatus = ExportStatus.Error(UiMessage.NoLikedPhotos)
             return exportStatus
         }
@@ -263,7 +362,7 @@ class PhotoViewModel : ViewModel() {
         val folderName = "PhotoSelector_Selected_${timestamp()}"
         exportStatus = withContext(Dispatchers.IO) {
             runCatching {
-                copySelectedFiles(contentResolver, treeUri, folderName, selectedPhotos)
+                copySelectedFiles(contentResolver, treeUri, folderName, selectedMedia)
             }.getOrElse { error ->
                 if (error is LocalizedExportException) {
                     ExportStatus.Error(error.uiMessage, error.argument)
@@ -280,37 +379,40 @@ class PhotoViewModel : ViewModel() {
     }
 
     fun loadPhotosFromFolder(treeUri: Uri, contentResolver: ContentResolver) {
-        setPhotos(emptyList())
+        loadMediaFromFolder(treeUri, contentResolver)
+    }
+
+    fun loadMediaFromFolder(treeUri: Uri, contentResolver: ContentResolver) {
+        setMediaItems(emptyList())
         setFolderDocuments(emptyList())
         selectedFolderUri = treeUri
         exportStatus = ExportStatus.Idle
         val docId = DocumentsContract.getTreeDocumentId(treeUri)
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
-        
+
         val projection = arrayOf(
             DocumentsContract.Document.COLUMN_DOCUMENT_ID,
             DocumentsContract.Document.COLUMN_MIME_TYPE,
             DocumentsContract.Document.COLUMN_DISPLAY_NAME
         )
-        
+
         contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
             val idColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
             val mimeColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
             val nameColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
-            
+
             while (cursor.moveToNext()) {
                 val id = cursor.getString(idColumn)
-                val mime = cursor.getString(mimeColumn)
-                val name = cursor.getString(nameColumn)
+                val mime = cursor.getString(mimeColumn).orEmpty()
+                val name = cursor.getString(nameColumn).orEmpty()
                 val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, id)
                 val document = FolderDocumentData(uri = uri, displayName = name, mimeType = mime)
                 if (mime != DocumentsContract.Document.MIME_TYPE_DIR) {
                     folderDocuments.add(document)
-                }
-                
-                if (mime == "image/jpeg" || name.lowercase().endsWith(".jpg") || name.lowercase().endsWith(".jpeg")) {
-                    photos.add(PhotoItemData(uri = uri, displayName = name))
-                    photoUris.add(uri)
+                    document.toMediaItemOrNull()?.let { media ->
+                        photos.add(media)
+                        photoUris.add(media.uri)
+                    }
                 }
             }
         }
@@ -320,7 +422,7 @@ class PhotoViewModel : ViewModel() {
         contentResolver: ContentResolver,
         treeUri: Uri,
         folderName: String,
-        selectedPhotos: List<PhotoItemData>
+        selectedMedia: List<MediaItemData>
     ): ExportStatus {
         val parentDocumentUri = DocumentsContract.buildDocumentUriUsingTree(
             treeUri,
@@ -333,8 +435,11 @@ class PhotoViewModel : ViewModel() {
             folderName
         ) ?: localizedError(UiMessage.CouldNotCreateExportFolder)
 
-        val filesToCopy = selectedPhotos.flatMap { photo ->
-            listOf(FolderDocumentData(photo.uri, photo.displayName, "image/jpeg")) + matchingRawFilesFor(photo)
+        val filesToCopy = selectedMedia.flatMap { media ->
+            when (media.mediaType) {
+                MediaType.Photo -> listOf(media.toFolderDocumentData()) + matchingRawFilesFor(media)
+                MediaType.Video -> listOf(media.toFolderDocumentData())
+            }
         }
 
         filesToCopy.forEach { source ->
@@ -350,6 +455,15 @@ class PhotoViewModel : ViewModel() {
         return ExportStatus.Success(folderName = folderName, copiedFiles = filesToCopy.size)
     }
 
+    private fun MediaItemData.toFolderDocumentData(): FolderDocumentData =
+        FolderDocumentData(
+            uri = uri,
+            displayName = displayName,
+            mimeType = mimeType.ifBlank {
+                if (mediaType == MediaType.Photo) "image/jpeg" else "application/octet-stream"
+            }
+        )
+
     private fun copyDocument(contentResolver: ContentResolver, sourceUri: Uri, destinationUri: Uri) {
         contentResolver.openInputStream(sourceUri)?.use { input ->
             contentResolver.openOutputStream(destinationUri)?.use { output ->
@@ -364,12 +478,6 @@ class PhotoViewModel : ViewModel() {
 
     private fun timestamp(): String =
         SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.US).format(Date())
-
-    private fun String.baseName(): String =
-        substringBeforeLast('.', this)
-
-    private fun String.extension(): String =
-        substringAfterLast('.', "")
 
     private companion object {
         val rawExtensions = setOf("CR3", "CR2", "NEF", "ARW", "DNG", "RAF", "RW2", "ORF")

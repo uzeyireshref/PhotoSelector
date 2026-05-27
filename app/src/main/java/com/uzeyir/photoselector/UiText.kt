@@ -7,6 +7,8 @@ enum class AppLanguage {
 
 enum class UiMessage {
     SelectAtLeastOnePhoto,
+    SdCardNotInserted,
+    SdCardPickerUnsupported,
     NoSourceFolder,
     NoLikedPhotos,
     ExportFailedFallback,
@@ -23,6 +25,10 @@ data class LocalizedStrings(
     val confirmSelection: String,
     val folderTitle: String,
     val selectFolder: String,
+    val openSdCard: String,
+    val chooseSdCard: String,
+    val photo: String,
+    val video: String,
     val selected: String,
     val total: String,
     val review: String,
@@ -32,6 +38,7 @@ data class LocalizedStrings(
     val finalConfirmation: String,
     val selectedJpg: String,
     val matchingRaw: String,
+    val selectedVideo: String,
     val totalFiles: String,
     val copyJpgAndRaw: String,
     val copyingSelectedFiles: String,
@@ -52,6 +59,8 @@ data class LocalizedStrings(
     val updateCheckFailed: String,
     private val updateAvailableText: (String) -> String,
     private val selectAtLeastOnePhoto: String,
+    private val sdCardNotInserted: String,
+    private val sdCardPickerUnsupported: String,
     private val noSourceFolder: String,
     private val noLikedPhotos: String,
     private val exportFailedFallback: String,
@@ -64,6 +73,7 @@ data class LocalizedStrings(
     fun selectedCount(count: Int): String = "$selected: $count"
     fun selectedJpgCount(count: Int): String = "$selectedJpg: $count"
     fun matchingRawCount(count: Int): String = "$matchingRaw: $count"
+    fun selectedVideoCount(count: Int): String = "$selectedVideo: $count"
     fun totalFileCount(count: Int): String = "$totalFiles: $count"
     fun folderName(name: String): String = "$folder: $name"
     fun copiedFileCount(count: Int): String = "$copiedFiles: $count"
@@ -71,6 +81,8 @@ data class LocalizedStrings(
 
     fun message(message: UiMessage, argument: String? = null): String = when (message) {
         UiMessage.SelectAtLeastOnePhoto -> selectAtLeastOnePhoto
+        UiMessage.SdCardNotInserted -> sdCardNotInserted
+        UiMessage.SdCardPickerUnsupported -> sdCardPickerUnsupported
         UiMessage.NoSourceFolder -> noSourceFolder
         UiMessage.NoLikedPhotos -> noLikedPhotos
         UiMessage.ExportFailedFallback -> exportFailedFallback
@@ -101,6 +113,10 @@ internal object UiText {
         confirmSelection = "Seçimi Onayla",
         folderTitle = "Fotoğraf Klasörünü Seç",
         selectFolder = "Klasör Seç",
+        openSdCard = "SD Kartı Aç",
+        chooseSdCard = "SD Kart Seç",
+        photo = "Fotoğraf",
+        video = "Video",
         selected = "Seçilen",
         total = "Toplam",
         review = "İncele",
@@ -110,6 +126,7 @@ internal object UiText {
         finalConfirmation = "Son Onay",
         selectedJpg = "Seçilen JPG",
         matchingRaw = "Eşleşen RAW",
+        selectedVideo = "Seçilen video",
         totalFiles = "Toplam dosya",
         copyJpgAndRaw = "JPG + RAW Kopyala",
         copyingSelectedFiles = "Seçilen dosyalar kopyalanıyor...",
@@ -130,6 +147,8 @@ internal object UiText {
         updateCheckFailed = "Güncelleme kontrol edilemedi",
         updateAvailableText = { versionName -> "Yeni sürüm var: $versionName" },
         selectAtLeastOnePhoto = "En az bir fotoğraf seçin.",
+        sdCardNotInserted = "SD kart takılı değil.",
+        sdCardPickerUnsupported = "Bu Android sürümünde SD kart doğrudan açılamıyor. Lütfen Klasör Seç ile devam edin.",
         noSourceFolder = "Kaynak klasör seçilmedi.",
         noLikedPhotos = "Seçilen fotoğraf yok.",
         exportFailedFallback = "Dışa aktarma başarısız oldu.",
@@ -146,6 +165,10 @@ internal object UiText {
         confirmSelection = "Confirm Selection",
         folderTitle = "Select Photo Folder",
         selectFolder = "Select Folder",
+        openSdCard = "Open SD Card",
+        chooseSdCard = "Choose SD Card",
+        photo = "Photo",
+        video = "Video",
         selected = "Selected",
         total = "Total",
         review = "Review",
@@ -155,6 +178,7 @@ internal object UiText {
         finalConfirmation = "Final Confirmation",
         selectedJpg = "Selected JPG",
         matchingRaw = "Matching RAW",
+        selectedVideo = "Selected video",
         totalFiles = "Total files",
         copyJpgAndRaw = "Copy JPG + RAW",
         copyingSelectedFiles = "Copying selected files...",
@@ -175,6 +199,8 @@ internal object UiText {
         updateCheckFailed = "Update check failed",
         updateAvailableText = { versionName -> "New version available: $versionName" },
         selectAtLeastOnePhoto = "Select at least one photo.",
+        sdCardNotInserted = "SD card is not inserted.",
+        sdCardPickerUnsupported = "This Android version cannot open the SD card directly. Please use Select Folder.",
         noSourceFolder = "Source folder was not selected.",
         noLikedPhotos = "No selected photos.",
         exportFailedFallback = "Export failed.",

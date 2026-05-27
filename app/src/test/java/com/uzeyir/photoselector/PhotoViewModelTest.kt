@@ -127,6 +127,61 @@ class PhotoViewModelTest {
     }
 
     @Test
+    fun videoPriceAtThreeVideosHasNoDiscount() {
+        val viewModel = PhotoViewModel()
+        val videos = testVideos(3)
+        viewModel.setMediaItems(videos)
+
+        videos.forEach { viewModel.toggleLike(it.uri) }
+
+        assertEquals(3, viewModel.selectedVideoCount)
+        assertEquals(3000, viewModel.videoBasePrice)
+        assertEquals(3000, viewModel.videoDisplayPrice)
+        assertEquals(0, viewModel.videoDiscount)
+    }
+
+    @Test
+    fun videoPriceAtFourVideosStartsDiscountAtFivePercent() {
+        val viewModel = PhotoViewModel()
+        val videos = testVideos(4)
+        viewModel.setMediaItems(videos)
+
+        videos.forEach { viewModel.toggleLike(it.uri) }
+
+        assertEquals(4000, viewModel.videoBasePrice)
+        assertEquals(3800, viewModel.videoDisplayPrice)
+        assertEquals(200, viewModel.videoDiscount)
+    }
+
+    @Test
+    fun videoPriceAfterTenVideosStaysAtMaximumDiscountedPrice() {
+        val viewModel = PhotoViewModel()
+        val videos = testVideos(12)
+        viewModel.setMediaItems(videos)
+
+        videos.forEach { viewModel.toggleLike(it.uri) }
+
+        assertEquals(12000, viewModel.videoBasePrice)
+        assertEquals(6500, viewModel.videoDisplayPrice)
+        assertEquals(5500, viewModel.videoDiscount)
+    }
+
+    @Test
+    fun photoAndVideoPricesAreDiscountedSeparatelyThenAdded() {
+        val viewModel = PhotoViewModel()
+        val media = testPhotos(4) + testVideos(4)
+        viewModel.setMediaItems(media)
+
+        media.forEach { viewModel.toggleLike(it.uri) }
+
+        assertEquals(1200, viewModel.photoBasePrice)
+        assertEquals(1140, viewModel.photoDisplayPrice)
+        assertEquals(4000, viewModel.videoBasePrice)
+        assertEquals(3800, viewModel.videoDisplayPrice)
+        assertEquals(4940, viewModel.totalDisplayPrice)
+    }
+
+    @Test
     fun backFromGalleryReturnsToFolderSelection() {
         val viewModel = PhotoViewModel()
         viewModel.navigateTo(Screen.Gallery)
@@ -305,11 +360,36 @@ class PhotoViewModelTest {
     }
 
     @Test
+    fun exportSummaryCountsSelectedVideosWithoutRawMatches() {
+        val viewModel = PhotoViewModel()
+        val media = listOf(
+            testPhoto("clip_1.jpg"),
+            testVideo("clip_1.mp4"),
+            testVideo("movie.mov")
+        )
+        viewModel.setMediaItems(media)
+        viewModel.setFolderDocuments(
+            listOf(
+                testDocument("clip_1.CR3"),
+                testDocument("movie.CR3")
+            )
+        )
+        media.forEach { viewModel.toggleLike(it.uri) }
+
+        val summary = viewModel.exportSummary
+
+        assertEquals(1, summary.selectedJpgCount)
+        assertEquals(1, summary.matchedRawCount)
+        assertEquals(2, summary.selectedVideoCount)
+        assertEquals(4, summary.totalFileCount)
+    }
+
+    @Test
     fun matchingRawFilesAreCaseInsensitiveAndLimitedToSameBaseName() {
         val viewModel = PhotoViewModel()
         val photos = listOf(
-            PhotoItemData(FakeUri("IMG_0001.JPG"), "IMG_0001.JPG"),
-            PhotoItemData(FakeUri("IMG_0002.JPG"), "IMG_0002.JPG")
+            testPhoto("IMG_0001.JPG"),
+            testPhoto("IMG_0002.JPG")
         )
         viewModel.setPhotos(photos)
         viewModel.setFolderDocuments(
@@ -326,18 +406,61 @@ class PhotoViewModelTest {
         assertEquals(listOf("img_0001.arw"), matches.map { it.displayName })
     }
 
-    private fun testPhotos(count: Int): List<PhotoItemData> =
+    @Test
+    fun mediaClassificationIncludesJpgAndVideosOnly() {
+        val documents = listOf(
+            testDocument("IMG_0001.JPG", "image/jpeg"),
+            testDocument("clip.MP4", ""),
+            testDocument("movie.mov", "application/octet-stream"),
+            testDocument("IMG_0001.CR3", "application/octet-stream"),
+            testDocument("notes.txt", "text/plain")
+        )
+
+        val media = documents.mapNotNull { it.toMediaItemOrNull() }
+
+        assertEquals(
+            listOf(MediaType.Photo, MediaType.Video, MediaType.Video),
+            media.map { it.mediaType }
+        )
+        assertEquals(
+            listOf("IMG_0001.JPG", "clip.MP4", "movie.mov"),
+            media.map { it.displayName }
+        )
+    }
+
+    private fun testPhotos(count: Int): List<MediaItemData> =
         (1..count).map { index ->
-            PhotoItemData(
-                uri = FakeUri("photo_$index.jpg"),
-                displayName = "photo_$index.jpg"
-            )
+            testPhoto("photo_$index.jpg")
         }
 
-    private fun testDocument(displayName: String): FolderDocumentData =
+    private fun testVideos(count: Int): List<MediaItemData> =
+        (1..count).map { index ->
+            testVideo("video_$index.mp4")
+        }
+
+    private fun testPhoto(displayName: String): MediaItemData =
+        MediaItemData(
+            uri = FakeUri(displayName),
+            displayName = displayName,
+            mimeType = "image/jpeg",
+            mediaType = MediaType.Photo
+        )
+
+    private fun testVideo(displayName: String): MediaItemData =
+        MediaItemData(
+            uri = FakeUri(displayName),
+            displayName = displayName,
+            mimeType = "video/mp4",
+            mediaType = MediaType.Video
+        )
+
+    private fun testDocument(
+        displayName: String,
+        mimeType: String = "application/octet-stream"
+    ): FolderDocumentData =
         FolderDocumentData(
             uri = FakeUri(displayName),
             displayName = displayName,
-            mimeType = "application/octet-stream"
+            mimeType = mimeType
         )
 }
