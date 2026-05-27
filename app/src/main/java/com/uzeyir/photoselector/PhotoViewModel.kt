@@ -13,6 +13,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.InputStream
 import java.io.OutputStream
 import java.text.SimpleDateFormat
@@ -519,22 +521,31 @@ class PhotoViewModel : ViewModel() {
         destinationUri: Uri,
         displayName: String
     ) {
-        contentResolver.openInputStream(sourceUri)?.use { input ->
-            val copiedBytes = contentResolver.openOutputStream(destinationUri, "wt")?.use { output ->
-                copyDocumentBytes(input, output, displayName)
-            } ?: localizedError(UiMessage.CouldNotOpenOutputStream)
-            verifyCopiedDocumentSize(contentResolver, destinationUri, copiedBytes, displayName)
-        } ?: localizedError(UiMessage.CouldNotOpenInputStream)
+        val expectedBytes = queryDocumentSize(contentResolver, sourceUri)
+        val copiedBytes = copyDocumentFileDescriptors(contentResolver, sourceUri, destinationUri, displayName)
+        verifyCopiedDocumentSize(contentResolver, destinationUri, copiedBytes, expectedBytes, displayName)
     }
 
     private fun verifyCopiedDocumentSize(
         contentResolver: ContentResolver,
         destinationUri: Uri,
         copiedBytes: Long,
+        expectedBytes: Long?,
         displayName: String
     ) {
-        val reportedSize = contentResolver.query(
-            destinationUri,
+        val reportedSize = queryDocumentSize(contentResolver, destinationUri)
+
+        if (expectedBytes != null && expectedBytes != copiedBytes) {
+            localizedError(UiMessage.CopyVerificationFailed, displayName)
+        }
+        if (reportedSize != null && reportedSize != copiedBytes) {
+            localizedError(UiMessage.CopyVerificationFailed, displayName)
+        }
+    }
+
+    private fun queryDocumentSize(contentResolver: ContentResolver, documentUri: Uri): Long? =
+        contentResolver.query(
+            documentUri,
             arrayOf(OpenableColumns.SIZE),
             null,
             null,
@@ -542,16 +553,15 @@ class PhotoViewModel : ViewModel() {
         )?.use { cursor ->
             if (cursor.moveToFirst()) {
                 val sizeColumn = cursor.getColumnIndex(OpenableColumns.SIZE)
-                if (sizeColumn >= 0 && !cursor.isNull(sizeColumn)) cursor.getLong(sizeColumn) else null
+                if (sizeColumn >= 0 && !cursor.isNull(sizeColumn)) {
+                    cursor.getLong(sizeColumn).takeIf { it >= 0L }
+                } else {
+                    null
+                }
             } else {
                 null
             }
         }
-
-        if (reportedSize != null && reportedSize >= 0L && reportedSize != copiedBytes) {
-            localizedError(UiMessage.CopyVerificationFailed, displayName)
-        }
-    }
 
     private fun localizedError(message: UiMessage, argument: String? = null): Nothing {
         throw LocalizedExportException(message, argument)
@@ -577,4 +587,40 @@ internal fun copyDocumentBytes(input: InputStream, output: OutputStream, display
         throw LocalizedExportException(UiMessage.CopyVerificationFailed, displayName)
     }
     return copiedBytes
+}
+
+internal fun copyDocumentFileDescriptors(
+    contentResolver: ContentResolver,
+    sourceUri: Uri,
+    destinationUri: Uri,
+    displayName: String
+): Long {
+    val sourceDescriptor = contentResolver.openFileDescriptor(sourceUri, "r")
+        ?: throw LocalizedExportException(UiMessage.CouldNotOpenInputStream)
+    val destinationDescriptor = contentResolver.openFileDescriptor(destinationUri, "rwt")
+        ?: throw LocalizedExportException(UiMessage.CouldNotOpenOutputStream)
+
+    sourceDescriptor.use { source ->
+        destinationDescriptor.use { destination ->
+            FileInputStream(source.fileDescriptor).channel.use { inputChannel ->
+                FileOutputStream(destination.fileDescriptor).channel.use { outputChannel ->
+                    var copiedBytes = 0L
+                    while (true) {
+                        val transferred = inputChannel.transferTo(
+                            copiedBytes,
+                            inputChannel.size() - copiedBytes,
+                            outputChannel
+                        )
+                        if (transferred <= 0L) break
+                        copiedBytes += transferred
+                    }
+                    outputChannel.force(true)
+                    if (copiedBytes <= 0L) {
+                        throw LocalizedExportException(UiMessage.CopyVerificationFailed, displayName)
+                    }
+                    return copiedBytes
+                }
+            }
+        }
+    }
 }
