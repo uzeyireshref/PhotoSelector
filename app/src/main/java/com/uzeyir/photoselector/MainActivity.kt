@@ -420,15 +420,6 @@ fun FolderSelectionScreen(
                 )
             )
     ) {
-        LanguageSelector(
-            selectedLanguage = language,
-            strings = strings,
-            onLanguageSelected = onLanguageSelected,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .statusBarsPadding()
-        )
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -453,6 +444,15 @@ fun FolderSelectionScreen(
             )
             Spacer(modifier = Modifier.height(32.dp))
         }
+
+        LanguageSelector(
+            selectedLanguage = language,
+            strings = strings,
+            onLanguageSelected = onLanguageSelected,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+        )
     }
 }
 
