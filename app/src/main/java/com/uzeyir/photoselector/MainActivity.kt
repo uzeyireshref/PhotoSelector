@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.storage.StorageManager
 import android.os.storage.StorageVolume
+import android.view.TextureView
 import androidx.annotation.OptIn
 import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
@@ -54,6 +55,7 @@ import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -71,6 +73,7 @@ import coil.compose.AsyncImage
 import com.uzeyir.photoselector.ui.theme.PhotoSelectorTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.ceil
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -111,6 +114,36 @@ fun rotatedMediaSize(containerWidthPx: Int, containerHeightPx: Int, rotationDegr
 
 fun videoFullscreenRotationDegrees(videoWidth: Int, videoHeight: Int): Int =
     if (videoWidth > 0 && videoHeight > 0 && videoWidth > videoHeight) 90 else 0
+
+fun fullscreenVideoSurfaceSize(
+    containerWidthPx: Int,
+    containerHeightPx: Int,
+    videoWidth: Int,
+    videoHeight: Int,
+    rotationDegrees: Int
+): Pair<Int, Int> {
+    if (containerWidthPx <= 0 || containerHeightPx <= 0 || videoWidth <= 0 || videoHeight <= 0) {
+        return rotatedMediaSize(containerWidthPx, containerHeightPx, rotationDegrees)
+    }
+
+    val normalizedRotation = ((rotationDegrees % 360) + 360) % 360
+    val isQuarterTurn = normalizedRotation == 90 || normalizedRotation == 270
+    val visualVideoWidth = if (isQuarterTurn) videoHeight else videoWidth
+    val visualVideoHeight = if (isQuarterTurn) videoWidth else videoHeight
+    val containerAspect = containerWidthPx.toDouble() / containerHeightPx.toDouble()
+    val visualVideoAspect = visualVideoWidth.toDouble() / visualVideoHeight.toDouble()
+    val visualSize = if (visualVideoAspect > containerAspect) {
+        ceil(containerHeightPx * visualVideoAspect).toInt() to containerHeightPx
+    } else {
+        containerWidthPx to ceil(containerWidthPx / visualVideoAspect).toInt()
+    }
+
+    return if (isQuarterTurn) {
+        visualSize.second to visualSize.first
+    } else {
+        visualSize
+    }
+}
 
 @Composable
 fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
@@ -958,6 +991,7 @@ fun VideoFullscreenPlayer(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val density = LocalDensity.current
     BackHandler(onBack = onExit)
 
     var currentPositionMs by remember(media.uri) { mutableLongStateOf(0L) }
@@ -965,6 +999,7 @@ fun VideoFullscreenPlayer(
     var isVideoPlaying by remember(media.uri) { mutableStateOf(false) }
     var videoWidth by remember(media.uri) { mutableIntStateOf(0) }
     var videoHeight by remember(media.uri) { mutableIntStateOf(0) }
+    var textureView by remember(media.uri) { mutableStateOf<TextureView?>(null) }
     val player = remember(media.uri) {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(PlayerMediaItem.fromUri(media.uri))
@@ -1001,31 +1036,45 @@ fun VideoFullscreenPlayer(
         }
     }
 
+    DisposableEffect(player, textureView) {
+        val currentTextureView = textureView
+        if (currentTextureView != null) {
+            player.setVideoTextureView(currentTextureView)
+        }
+        onDispose {
+            if (currentTextureView != null) {
+                player.clearVideoTextureView(currentTextureView)
+            }
+        }
+    }
+
     BoxWithConstraints(
         modifier = modifier.background(Color.Black),
         contentAlignment = Alignment.Center
     ) {
         val rotationDegrees = videoFullscreenRotationDegrees(videoWidth, videoHeight)
-        val (mediaWidthPx, mediaHeightPx) = rotatedMediaSize(
-            constraints.maxWidth,
-            constraints.maxHeight,
-            rotationDegrees
+        val (mediaWidthPx, mediaHeightPx) = fullscreenVideoSurfaceSize(
+            containerWidthPx = constraints.maxWidth,
+            containerHeightPx = constraints.maxHeight,
+            videoWidth = videoWidth,
+            videoHeight = videoHeight,
+            rotationDegrees = rotationDegrees
         )
-        val mediaWidth = if (mediaWidthPx == constraints.maxWidth) maxWidth else maxHeight
-        val mediaHeight = if (mediaHeightPx == constraints.maxHeight) maxHeight else maxWidth
+        val mediaWidth = with(density) { mediaWidthPx.toDp() }
+        val mediaHeight = with(density) { mediaHeightPx.toDp() }
 
         AndroidView(
             factory = { viewContext ->
-                PlayerView(viewContext).apply {
-                    this.player = player
-                    useController = false
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                TextureView(viewContext).also { view ->
+                    textureView = view
+                    player.setVideoTextureView(view)
                 }
             },
-            update = { playerView ->
-                playerView.player = player
-                playerView.useController = false
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            update = { view ->
+                if (textureView !== view) {
+                    textureView = view
+                }
+                player.setVideoTextureView(view)
             },
             modifier = Modifier
                 .requiredSize(width = mediaWidth, height = mediaHeight)

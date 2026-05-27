@@ -496,6 +496,20 @@ class PhotoViewModelTest {
     }
 
     @Test
+    fun fullscreenVideoSurfaceSizePreservesLandscapeAspectAfterRotation() {
+        assertEquals(
+            2113 to 1189,
+            fullscreenVideoSurfaceSize(
+                containerWidthPx = 1080,
+                containerHeightPx = 2113,
+                videoWidth = 1920,
+                videoHeight = 1080,
+                rotationDegrees = 90
+            )
+        )
+    }
+
+    @Test
     fun setMediaItemsClearsSessionRotation() {
         val viewModel = PhotoViewModel()
         val firstPhoto = testPhoto("first.jpg")
