@@ -475,6 +475,21 @@ class PhotoViewModelTest {
     }
 
     @Test
+    fun rotatedMediaFitScaleShrinksQuarterTurnsInsideContainer() {
+        assertEquals(1f, rotationFitScale(1080, 1920, 0))
+        assertEquals(1f, rotationFitScale(1080, 1920, 180))
+        assertEquals(0.5625f, rotationFitScale(1080, 1920, 90))
+        assertEquals(0.5625f, rotationFitScale(1080, 1920, 270))
+    }
+
+    @Test
+    fun rotatedMediaFitScaleLeavesSquareAndInvalidContainersUnchanged() {
+        assertEquals(1f, rotationFitScale(1000, 1000, 90))
+        assertEquals(1f, rotationFitScale(0, 1000, 90))
+        assertEquals(1f, rotationFitScale(1000, 0, 90))
+    }
+
+    @Test
     fun setMediaItemsClearsSessionRotation() {
         val viewModel = PhotoViewModel()
         val firstPhoto = testPhoto("first.jpg")

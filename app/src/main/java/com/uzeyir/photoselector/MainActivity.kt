@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.storage.StorageManager
 import android.os.storage.StorageVolume
+import androidx.annotation.OptIn
 import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -51,11 +52,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem as PlayerMediaItem
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.uzeyir.photoselector.ui.theme.PhotoSelectorTheme
@@ -85,6 +89,18 @@ enum class Screen {
     PhotoDetail,
     Review,
     Confirmation
+}
+
+private val VideoControlsBottomInset = 96.dp
+
+fun rotationFitScale(containerWidthPx: Int, containerHeightPx: Int, rotationDegrees: Int): Float {
+    if (containerWidthPx <= 0 || containerHeightPx <= 0) return 1f
+    val normalizedRotation = ((rotationDegrees % 360) + 360) % 360
+    if (normalizedRotation != 90 && normalizedRotation != 270) return 1f
+
+    val width = containerWidthPx.toFloat()
+    val height = containerHeightPx.toFloat()
+    return minOf(width / height, height / width).coerceAtMost(1f)
 }
 
 @Composable
@@ -614,6 +630,7 @@ fun PhotoDetailScreen(
                     media = media,
                     isActive = page == pagerState.currentPage,
                     rotationDegrees = rotationDegrees,
+                    controlsBottomInset = VideoControlsBottomInset,
                     onSingleTap = { toggleControls() }
                 )
             } else {
@@ -720,7 +737,7 @@ fun ZoomablePhoto(
         offsetY = 0f
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(photo.uri) {
@@ -773,14 +790,19 @@ fun ZoomablePhoto(
             },
         contentAlignment = Alignment.Center
     ) {
+        val fittedScale = scale * rotationFitScale(
+            constraints.maxWidth,
+            constraints.maxHeight,
+            rotationDegrees
+        )
         AsyncImage(
             model = photo.uri,
             contentDescription = photo.displayName,
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer(
-                    scaleX = scale,
-                    scaleY = scale,
+                    scaleX = fittedScale,
+                    scaleY = fittedScale,
                     translationX = offsetX,
                     translationY = offsetY,
                     rotationZ = rotationDegrees.toFloat()
@@ -791,10 +813,12 @@ fun ZoomablePhoto(
 }
 
 @Composable
+@OptIn(UnstableApi::class)
 fun VideoPlayer(
     media: MediaItemData,
     isActive: Boolean,
     rotationDegrees: Int,
+    controlsBottomInset: Dp,
     onSingleTap: () -> Unit
 ) {
     val context = LocalContext.current
@@ -820,7 +844,7 @@ fun VideoPlayer(
         }
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(media.uri) {
@@ -828,19 +852,31 @@ fun VideoPlayer(
             },
         contentAlignment = Alignment.Center
     ) {
+        val fitScale = rotationFitScale(
+            constraints.maxWidth,
+            constraints.maxHeight,
+            rotationDegrees
+        )
         AndroidView(
             factory = { viewContext ->
                 PlayerView(viewContext).apply {
                     this.player = player
                     useController = true
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 }
             },
             update = { playerView ->
                 playerView.player = player
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             },
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer(rotationZ = rotationDegrees.toFloat())
+                .padding(bottom = controlsBottomInset)
+                .graphicsLayer(
+                    scaleX = fitScale,
+                    scaleY = fitScale,
+                    rotationZ = rotationDegrees.toFloat()
+                )
         )
     }
 }
