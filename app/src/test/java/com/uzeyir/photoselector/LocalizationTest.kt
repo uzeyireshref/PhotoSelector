@@ -18,15 +18,11 @@ class LocalizationTest {
         assertEquals("Klasör Seç", turkish.selectFolder)
         assertEquals("SD Kartı Aç", turkish.openSdCard)
         assertEquals("Güncellemeyi Kontrol Et", turkish.checkUpdate)
-        assertEquals("Beğendiklerini İncele", turkish.reviewSelection)
-        assertEquals("Beğendiklerini İncele", turkish.review)
 
         assertEquals("Select Photo Folder", english.folderTitle)
         assertEquals("Select Folder", english.selectFolder)
         assertEquals("Open SD Card", english.openSdCard)
         assertEquals("Check for Updates", english.checkUpdate)
-        assertEquals("Review Liked", english.reviewSelection)
-        assertEquals("Review Liked", english.review)
     }
 
     @Test

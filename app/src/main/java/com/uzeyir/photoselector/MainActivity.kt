@@ -1396,57 +1396,51 @@ fun FullscreenBottomBar(
         color = Color.Black.copy(alpha = 0.62f),
         modifier = modifier.fillMaxWidth()
     ) {
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 920.dp)
-                    .navigationBarsPadding()
-                    .padding(horizontal = 32.dp, vertical = 18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                Text(strings.selectedCount(photoCount + videoCount), color = Color.White)
+                SelectionPriceSummary(
+                    photoCount = photoCount,
+                    videoCount = videoCount,
+                    photoOriginalPrice = photoOriginalPrice,
+                    photoPayablePrice = photoPayablePrice,
+                    videoOriginalPrice = videoOriginalPrice,
+                    videoPayablePrice = videoPayablePrice,
+                    totalPayablePrice = totalPayablePrice,
+                    strings = strings,
+                    textColor = Color.White,
+                    discountedColor = Color(0xFF81C784)
+                )
+            }
+            Spacer(modifier = Modifier.width(14.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                FilledIconButton(
+                    onClick = onLikeToggle,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = if (isLiked) Color.White else Color.White.copy(alpha = 0.14f),
+                        contentColor = if (isLiked) Color.Red else Color.White
+                    )
                 ) {
-                    Text(strings.selectedCount(photoCount + videoCount), color = Color.White)
-                    SelectionPriceSummary(
-                        photoCount = photoCount,
-                        videoCount = videoCount,
-                        photoOriginalPrice = photoOriginalPrice,
-                        photoPayablePrice = photoPayablePrice,
-                        videoOriginalPrice = videoOriginalPrice,
-                        videoPayablePrice = videoPayablePrice,
-                        totalPayablePrice = totalPayablePrice,
-                        strings = strings,
-                        textColor = Color.White,
-                        discountedColor = Color(0xFF81C784)
+                    Icon(
+                        imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = strings.like
                     )
                 }
-                Spacer(modifier = Modifier.width(20.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    FilledIconButton(
-                        onClick = onLikeToggle,
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = if (isLiked) Color.White else Color.White.copy(alpha = 0.14f),
-                            contentColor = if (isLiked) Color.Red else Color.White
-                        )
-                    ) {
-                        Icon(
-                            imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = strings.like
-                        )
-                    }
-                    Button(
-                        onClick = onReviewClick,
-                        modifier = Modifier.widthIn(min = 180.dp)
-                    ) {
-                        Text(strings.review)
-                    }
+                Button(onClick = onReviewClick) {
+                    Text(strings.review)
                 }
             }
         }
@@ -1468,46 +1462,40 @@ fun VideoCompactBottomBar(
         color = Color.Black.copy(alpha = 0.68f),
         modifier = modifier.fillMaxWidth()
     ) {
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 920.dp)
-                    .navigationBarsPadding()
-                    .padding(horizontal = 32.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 18.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "${strings.photo}: $photoCount  ${strings.video}: $videoCount",
+                    color = Color.White.copy(alpha = 0.78f),
+                    style = MaterialTheme.typography.labelLarge
+                )
+                Text(
+                    text = strings.price(totalPayablePrice),
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+            FilledIconButton(
+                onClick = onLikeToggle,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = if (isLiked) Color.White else Color.White.copy(alpha = 0.14f),
+                    contentColor = if (isLiked) Color.Red else Color.White
+                )
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "${strings.photo}: $photoCount  ${strings.video}: $videoCount",
-                        color = Color.White.copy(alpha = 0.78f),
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                    Text(
-                        text = strings.price(totalPayablePrice),
-                        color = Color.White,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                }
-                FilledIconButton(
-                    onClick = onLikeToggle,
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = if (isLiked) Color.White else Color.White.copy(alpha = 0.14f),
-                        contentColor = if (isLiked) Color.Red else Color.White
-                    )
-                ) {
-                    Icon(
-                        imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        contentDescription = strings.like
-                    )
-                }
-                Button(
-                    onClick = onReviewClick,
-                    modifier = Modifier.widthIn(min = 180.dp)
-                ) {
-                    Text(strings.review)
-                }
+                Icon(
+                    imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = strings.like
+                )
+            }
+            Button(onClick = onReviewClick) {
+                Text(strings.review)
             }
         }
     }
@@ -1719,35 +1707,29 @@ fun BottomPriceBar(
     strings: LocalizedStrings
 ) {
     Surface(tonalElevation = 8.dp) {
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 960.dp)
-                    .navigationBarsPadding()
-                    .padding(horizontal = 32.dp, vertical = 18.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(strings.selectedCount(photoCount + videoCount))
-                    SelectionPriceSummary(
-                        photoCount = photoCount,
-                        videoCount = videoCount,
-                        photoOriginalPrice = photoOriginalPrice,
-                        photoPayablePrice = photoPayablePrice,
-                        videoOriginalPrice = videoOriginalPrice,
-                        videoPayablePrice = videoPayablePrice,
-                        totalPayablePrice = totalPayablePrice,
-                        strings = strings
-                    )
-                }
-                Button(
-                    onClick = onReviewClick,
-                    modifier = Modifier.widthIn(min = 190.dp)
-                ) {
-                    Text(buttonText)
-                }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(strings.selectedCount(photoCount + videoCount))
+                SelectionPriceSummary(
+                    photoCount = photoCount,
+                    videoCount = videoCount,
+                    photoOriginalPrice = photoOriginalPrice,
+                    photoPayablePrice = photoPayablePrice,
+                    videoOriginalPrice = videoOriginalPrice,
+                    videoPayablePrice = videoPayablePrice,
+                    totalPayablePrice = totalPayablePrice,
+                    strings = strings
+                )
+            }
+            Button(onClick = onReviewClick) {
+                Text(buttonText)
             }
         }
     }
