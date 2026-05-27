@@ -36,7 +36,11 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SdStorage
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.*
@@ -57,6 +61,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem as PlayerMediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -93,15 +99,18 @@ enum class Screen {
 
 private val VideoControlsBottomInset = 96.dp
 
-fun rotationFitScale(containerWidthPx: Int, containerHeightPx: Int, rotationDegrees: Int): Float {
-    if (containerWidthPx <= 0 || containerHeightPx <= 0) return 1f
+fun rotatedMediaSize(containerWidthPx: Int, containerHeightPx: Int, rotationDegrees: Int): Pair<Int, Int> {
+    if (containerWidthPx <= 0 || containerHeightPx <= 0) return containerWidthPx to containerHeightPx
     val normalizedRotation = ((rotationDegrees % 360) + 360) % 360
-    if (normalizedRotation != 90 && normalizedRotation != 270) return 1f
-
-    val width = containerWidthPx.toFloat()
-    val height = containerHeightPx.toFloat()
-    return minOf(width / height, height / width).coerceAtMost(1f)
+    return if (normalizedRotation == 90 || normalizedRotation == 270) {
+        containerHeightPx to containerWidthPx
+    } else {
+        containerWidthPx to containerHeightPx
+    }
 }
+
+fun videoFullscreenRotationDegrees(videoWidth: Int, videoHeight: Int): Int =
+    if (videoWidth > 0 && videoHeight > 0 && videoWidth > videoHeight) 90 else 0
 
 @Composable
 fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
@@ -573,9 +582,14 @@ fun PhotoDetailScreen(
     val coroutineScope = rememberCoroutineScope()
     var controlsVisible by remember { mutableStateOf(true) }
     var controlsWakeKey by remember { mutableIntStateOf(0) }
+    var fullscreenVideo by remember { mutableStateOf<MediaItemData?>(null) }
     val currentPhoto = photos[pagerState.currentPage]
     val isCurrentVideo = currentPhoto.mediaType == MediaType.Video
     val isLiked = likedPhotos.contains(currentPhoto.uri)
+
+    BackHandler(enabled = fullscreenVideo != null) {
+        fullscreenVideo = null
+    }
 
     fun showControlsAndResetTimer() {
         controlsVisible = true
@@ -607,6 +621,10 @@ fun PhotoDetailScreen(
         }
     }
 
+    LaunchedEffect(currentPhoto.uri) {
+        fullscreenVideo = null
+    }
+
     LaunchedEffect(controlsVisible, controlsWakeKey, pagerState.currentPage, isCurrentVideo) {
         if (controlsVisible && !isCurrentVideo) {
             delay(2_500)
@@ -624,11 +642,11 @@ fun PhotoDetailScreen(
             modifier = Modifier.fillMaxSize()
         ) { page ->
             val media = photos[page]
-            val rotationDegrees = rotationFor(media.uri)
+            val rotationDegrees = if (media.mediaType == MediaType.Photo) rotationFor(media.uri) else 0
             if (media.mediaType == MediaType.Video) {
                 VideoPlayer(
                     media = media,
-                    isActive = page == pagerState.currentPage,
+                    isActive = page == pagerState.currentPage && fullscreenVideo == null,
                     rotationDegrees = rotationDegrees,
                     controlsBottomInset = VideoControlsBottomInset,
                     onSingleTap = { toggleControls() }
@@ -685,7 +703,12 @@ fun PhotoDetailScreen(
                 currentIndex = pagerState.currentPage,
                 totalCount = photos.size,
                 strings = strings,
-                onRotate = onRotate,
+                onRotate = if (currentPhoto.mediaType == MediaType.Photo) onRotate else null,
+                onVideoFullscreen = if (currentPhoto.mediaType == MediaType.Video) {
+                    { fullscreenVideo = currentPhoto }
+                } else {
+                    null
+                },
                 onBack = onBack
             )
         }
@@ -715,6 +738,15 @@ fun PhotoDetailScreen(
                 onLikeToggle = { onLikeToggle(currentPhoto.uri) },
                 onReviewClick = onReviewClick,
                 modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
+
+        fullscreenVideo?.let { media ->
+            VideoFullscreenPlayer(
+                media = media,
+                strings = strings,
+                onExit = { fullscreenVideo = null },
+                modifier = Modifier.matchParentSize()
             )
         }
     }
@@ -790,19 +822,21 @@ fun ZoomablePhoto(
             },
         contentAlignment = Alignment.Center
     ) {
-        val fittedScale = scale * rotationFitScale(
+        val (mediaWidthPx, mediaHeightPx) = rotatedMediaSize(
             constraints.maxWidth,
             constraints.maxHeight,
             rotationDegrees
         )
+        val mediaWidth = if (mediaWidthPx == constraints.maxWidth) maxWidth else maxHeight
+        val mediaHeight = if (mediaHeightPx == constraints.maxHeight) maxHeight else maxWidth
         AsyncImage(
             model = photo.uri,
             contentDescription = photo.displayName,
             modifier = Modifier
-                .fillMaxSize()
+                .requiredSize(width = mediaWidth, height = mediaHeight)
                 .graphicsLayer(
-                    scaleX = fittedScale,
-                    scaleY = fittedScale,
+                    scaleX = scale,
+                    scaleY = scale,
                     translationX = offsetX,
                     translationY = offsetY,
                     rotationZ = rotationDegrees.toFloat()
@@ -822,11 +856,20 @@ fun VideoPlayer(
     onSingleTap: () -> Unit
 ) {
     val context = LocalContext.current
+    var currentPositionMs by remember(media.uri) { mutableLongStateOf(0L) }
+    var durationMs by remember(media.uri) { mutableLongStateOf(0L) }
+    var isVideoPlaying by remember(media.uri) { mutableStateOf(false) }
     val player = remember(media.uri) {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(PlayerMediaItem.fromUri(media.uri))
             prepare()
         }
+    }
+
+    fun updatePlaybackState() {
+        currentPositionMs = player.currentPosition.coerceAtLeast(0L)
+        durationMs = player.duration.takeIf { it > 0L } ?: 0L
+        isVideoPlaying = player.isPlaying
     }
 
     LaunchedEffect(isActive) {
@@ -835,6 +878,11 @@ fun VideoPlayer(
             player.play()
         } else {
             player.pause()
+        }
+        updatePlaybackState()
+        while (isActive) {
+            delay(500)
+            updatePlaybackState()
         }
     }
 
@@ -852,33 +900,229 @@ fun VideoPlayer(
             },
         contentAlignment = Alignment.Center
     ) {
-        val fitScale = rotationFitScale(
+        val (mediaWidthPx, mediaHeightPx) = rotatedMediaSize(
             constraints.maxWidth,
             constraints.maxHeight,
             rotationDegrees
         )
+        val mediaWidth = if (mediaWidthPx == constraints.maxWidth) maxWidth else maxHeight
+        val mediaHeight = if (mediaHeightPx == constraints.maxHeight) maxHeight else maxWidth
         AndroidView(
             factory = { viewContext ->
                 PlayerView(viewContext).apply {
                     this.player = player
-                    useController = true
+                    useController = false
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 }
             },
             update = { playerView ->
                 playerView.player = player
+                playerView.useController = false
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             },
             modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = controlsBottomInset)
+                .requiredSize(width = mediaWidth, height = mediaHeight)
                 .graphicsLayer(
-                    scaleX = fitScale,
-                    scaleY = fitScale,
                     rotationZ = rotationDegrees.toFloat()
                 )
         )
+        VideoPlaybackControls(
+            isPlaying = isVideoPlaying,
+            currentPositionMs = currentPositionMs,
+            durationMs = durationMs,
+            onPlayPause = {
+                if (player.isPlaying) {
+                    player.pause()
+                } else {
+                    player.play()
+                }
+                updatePlaybackState()
+            },
+            onSeekTo = { positionMs ->
+                player.seekTo(positionMs)
+                updatePlaybackState()
+            },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(start = 18.dp, end = 18.dp, bottom = controlsBottomInset + 12.dp)
+        )
     }
+}
+
+@Composable
+@OptIn(UnstableApi::class)
+fun VideoFullscreenPlayer(
+    media: MediaItemData,
+    strings: LocalizedStrings,
+    onExit: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    BackHandler(onBack = onExit)
+
+    var currentPositionMs by remember(media.uri) { mutableLongStateOf(0L) }
+    var durationMs by remember(media.uri) { mutableLongStateOf(0L) }
+    var isVideoPlaying by remember(media.uri) { mutableStateOf(false) }
+    var videoWidth by remember(media.uri) { mutableIntStateOf(0) }
+    var videoHeight by remember(media.uri) { mutableIntStateOf(0) }
+    val player = remember(media.uri) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(PlayerMediaItem.fromUri(media.uri))
+            playWhenReady = true
+            prepare()
+            play()
+        }
+    }
+
+    fun updatePlaybackState() {
+        currentPositionMs = player.currentPosition.coerceAtLeast(0L)
+        durationMs = player.duration.takeIf { it > 0L } ?: 0L
+        isVideoPlaying = player.isPlaying
+    }
+
+    LaunchedEffect(player) {
+        while (true) {
+            updatePlaybackState()
+            delay(500)
+        }
+    }
+
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                videoWidth = videoSize.width
+                videoHeight = videoSize.height
+            }
+        }
+        player.addListener(listener)
+        onDispose {
+            player.removeListener(listener)
+            player.release()
+        }
+    }
+
+    BoxWithConstraints(
+        modifier = modifier.background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        val rotationDegrees = videoFullscreenRotationDegrees(videoWidth, videoHeight)
+        val (mediaWidthPx, mediaHeightPx) = rotatedMediaSize(
+            constraints.maxWidth,
+            constraints.maxHeight,
+            rotationDegrees
+        )
+        val mediaWidth = if (mediaWidthPx == constraints.maxWidth) maxWidth else maxHeight
+        val mediaHeight = if (mediaHeightPx == constraints.maxHeight) maxHeight else maxWidth
+
+        AndroidView(
+            factory = { viewContext ->
+                PlayerView(viewContext).apply {
+                    this.player = player
+                    useController = false
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                }
+            },
+            update = { playerView ->
+                playerView.player = player
+                playerView.useController = false
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            },
+            modifier = Modifier
+                .requiredSize(width = mediaWidth, height = mediaHeight)
+                .graphicsLayer(rotationZ = rotationDegrees.toFloat())
+        )
+
+        FilledIconButton(
+            onClick = onExit,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(top = 12.dp, end = 16.dp),
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = Color.Black.copy(alpha = 0.48f),
+                contentColor = Color.White
+            )
+        ) {
+            Icon(Icons.Default.FullscreenExit, contentDescription = strings.exitFullscreen)
+        }
+
+        VideoPlaybackControls(
+            isPlaying = isVideoPlaying,
+            currentPositionMs = currentPositionMs,
+            durationMs = durationMs,
+            onPlayPause = {
+                if (player.isPlaying) {
+                    player.pause()
+                } else {
+                    player.play()
+                }
+                updatePlaybackState()
+            },
+            onSeekTo = { positionMs ->
+                player.seekTo(positionMs)
+                updatePlaybackState()
+            },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(start = 18.dp, end = 18.dp, bottom = 20.dp)
+        )
+    }
+}
+
+@Composable
+fun VideoPlaybackControls(
+    isPlaying: Boolean,
+    currentPositionMs: Long,
+    durationMs: Long,
+    onPlayPause: () -> Unit,
+    onSeekTo: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = Color.Black.copy(alpha = 0.58f),
+        shape = RoundedCornerShape(8.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            IconButton(onClick = onPlayPause) {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    tint = Color.White
+                )
+            }
+            Text(
+                text = formatPlaybackTime(currentPositionMs),
+                color = Color.White,
+                style = MaterialTheme.typography.labelMedium
+            )
+            val sliderMax = durationMs.takeIf { it > 0L } ?: 1L
+            Slider(
+                value = currentPositionMs.coerceIn(0L, sliderMax).toFloat(),
+                onValueChange = { onSeekTo(it.toLong()) },
+                valueRange = 0f..sliderMax.toFloat(),
+                enabled = durationMs > 0L,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = formatPlaybackTime(durationMs),
+                color = Color.White,
+                style = MaterialTheme.typography.labelMedium
+            )
+        }
+    }
+}
+
+fun formatPlaybackTime(timeMs: Long): String {
+    val totalSeconds = (timeMs / 1_000).coerceAtLeast(0L)
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "%d:%02d".format(minutes, seconds)
 }
 
 @Composable
@@ -887,7 +1131,8 @@ fun FullscreenTopBar(
     currentIndex: Int,
     totalCount: Int,
     strings: LocalizedStrings,
-    onRotate: () -> Unit,
+    onRotate: (() -> Unit)?,
+    onVideoFullscreen: (() -> Unit)?,
     onBack: () -> Unit
 ) {
     Surface(
@@ -919,8 +1164,13 @@ fun FullscreenTopBar(
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
-            IconButton(onClick = onRotate) {
-                Icon(Icons.AutoMirrored.Filled.RotateRight, contentDescription = strings.rotate, tint = Color.White)
+            when {
+                onRotate != null -> IconButton(onClick = onRotate) {
+                    Icon(Icons.AutoMirrored.Filled.RotateRight, contentDescription = strings.rotate, tint = Color.White)
+                }
+                onVideoFullscreen != null -> IconButton(onClick = onVideoFullscreen) {
+                    Icon(Icons.Default.Fullscreen, contentDescription = strings.fullscreen, tint = Color.White)
+                }
             }
         }
     }

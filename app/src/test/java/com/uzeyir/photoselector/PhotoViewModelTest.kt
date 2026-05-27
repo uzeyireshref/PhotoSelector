@@ -475,18 +475,24 @@ class PhotoViewModelTest {
     }
 
     @Test
-    fun rotatedMediaFitScaleShrinksQuarterTurnsInsideContainer() {
-        assertEquals(1f, rotationFitScale(1080, 1920, 0))
-        assertEquals(1f, rotationFitScale(1080, 1920, 180))
-        assertEquals(0.5625f, rotationFitScale(1080, 1920, 90))
-        assertEquals(0.5625f, rotationFitScale(1080, 1920, 270))
+    fun rotatedMediaSizeSwapsContainerForQuarterTurns() {
+        assertEquals(1080 to 1920, rotatedMediaSize(1080, 1920, 0))
+        assertEquals(1080 to 1920, rotatedMediaSize(1080, 1920, 180))
+        assertEquals(1920 to 1080, rotatedMediaSize(1080, 1920, 90))
+        assertEquals(1920 to 1080, rotatedMediaSize(1080, 1920, 270))
     }
 
     @Test
-    fun rotatedMediaFitScaleLeavesSquareAndInvalidContainersUnchanged() {
-        assertEquals(1f, rotationFitScale(1000, 1000, 90))
-        assertEquals(1f, rotationFitScale(0, 1000, 90))
-        assertEquals(1f, rotationFitScale(1000, 0, 90))
+    fun rotatedMediaSizeLeavesInvalidContainersUnchanged() {
+        assertEquals(0 to 1000, rotatedMediaSize(0, 1000, 90))
+        assertEquals(1000 to 0, rotatedMediaSize(1000, 0, 90))
+    }
+
+    @Test
+    fun videoFullscreenRotationTurnsOnlyLandscapeVideoSideways() {
+        assertEquals(90, videoFullscreenRotationDegrees(videoWidth = 1920, videoHeight = 1080))
+        assertEquals(0, videoFullscreenRotationDegrees(videoWidth = 1080, videoHeight = 1920))
+        assertEquals(0, videoFullscreenRotationDegrees(videoWidth = 0, videoHeight = 0))
     }
 
     @Test
