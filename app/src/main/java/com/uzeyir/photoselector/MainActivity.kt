@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.storage.StorageManager
 import android.os.storage.StorageVolume
+import android.provider.DocumentsContract
 import android.view.TextureView
 import androidx.annotation.OptIn
 import androidx.activity.compose.BackHandler
@@ -62,6 +63,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -243,7 +246,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
             viewModel.warn(UiMessage.SdCardPickerUnsupported)
             return
         }
-        openDocumentTree(volume.createOpenDocumentTreeIntent())
+        openDocumentTree(volume.createOpenDocumentTreeIntent().withSdCardDcimInitialUri())
     }
 
     fun openSdCardPicker() {
@@ -394,6 +397,32 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
             }
         }
     }
+}
+
+private fun Intent.withSdCardDcimInitialUri(): Intent {
+    val rootUri = getParcelableExtraCompat(DocumentsContract.EXTRA_INITIAL_URI) ?: return this
+    val dcimUri = sdCardDcimInitialUriStringFromRootUri(rootUri.toString()) ?: return this
+    return putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.parse(dcimUri))
+}
+
+@Suppress("DEPRECATION")
+private fun Intent.getParcelableExtraCompat(name: String): Uri? =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        getParcelableExtra(name, Uri::class.java)
+    } else {
+        getParcelableExtra(name)
+    }
+
+internal fun sdCardDcimInitialUriStringFromRootUri(rootUri: String): String? {
+    val rootPrefix = "content://com.android.externalstorage.documents/root/"
+    if (!rootUri.startsWith(rootPrefix)) return null
+    val volumeId = rootUri
+        .removePrefix(rootPrefix)
+        .substringBefore('/')
+        .substringBefore('?')
+        .substringBefore('#')
+    if (volumeId.isBlank()) return null
+    return "content://com.android.externalstorage.documents/document/${volumeId}%3ADCIM"
 }
 
 @Composable
@@ -754,32 +783,20 @@ fun PhotoDetailScreen(
     )
     val coroutineScope = rememberCoroutineScope()
     var controlsVisible by remember { mutableStateOf(true) }
-    var controlsWakeKey by remember { mutableIntStateOf(0) }
     var fullscreenVideo by remember { mutableStateOf<MediaItemData?>(null) }
     val currentPhoto = photos[pagerState.currentPage]
-    val isCurrentVideo = currentPhoto.mediaType == MediaType.Video
     val isLiked = likedPhotos.contains(currentPhoto.uri)
 
     BackHandler(enabled = fullscreenVideo != null) {
         fullscreenVideo = null
     }
 
-    fun showControlsAndResetTimer() {
+    fun showControls() {
         controlsVisible = true
-        controlsWakeKey += 1
     }
 
     fun toggleControls() {
         controlsVisible = !controlsVisible
-        if (controlsVisible) {
-            controlsWakeKey += 1
-        }
-    }
-
-    fun keepVisibleControlsAlive() {
-        if (controlsVisible) {
-            controlsWakeKey += 1
-        }
     }
 
     LaunchedEffect(selectedPhotoIndex, photos.size) {
@@ -796,13 +813,7 @@ fun PhotoDetailScreen(
 
     LaunchedEffect(currentPhoto.uri) {
         fullscreenVideo = null
-    }
-
-    LaunchedEffect(controlsVisible, controlsWakeKey, pagerState.currentPage, isCurrentVideo) {
-        if (controlsVisible && !isCurrentVideo) {
-            delay(2_500)
-            controlsVisible = false
-        }
+        controlsVisible = true
     }
 
     Box(
@@ -829,16 +840,16 @@ fun PhotoDetailScreen(
                     photo = media,
                     rotationDegrees = rotationDegrees,
                     onSingleTap = { toggleControls() },
-                    onDoubleTapOrTransform = { keepVisibleControlsAlive() }
+                    onDoubleTapOrTransform = { showControls() }
                 )
             }
         }
 
-        if (controlsVisible || isCurrentVideo) {
+        if (controlsVisible) {
             if (pagerState.currentPage > 0) {
                 FilledIconButton(
                     onClick = {
-                        showControlsAndResetTimer()
+                        showControls()
                         coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
                     },
                     modifier = Modifier
@@ -856,7 +867,7 @@ fun PhotoDetailScreen(
             if (pagerState.currentPage < photos.lastIndex) {
                 FilledIconButton(
                     onClick = {
-                        showControlsAndResetTimer()
+                        showControls()
                         coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
                     },
                     modifier = Modifier
@@ -886,7 +897,7 @@ fun PhotoDetailScreen(
             )
         }
 
-        if (isCurrentVideo) {
+        if (currentPhoto.mediaType == MediaType.Video && controlsVisible) {
             VideoCompactBottomBar(
                 photoCount = photoCount,
                 videoCount = videoCount,
@@ -1068,6 +1079,7 @@ fun VideoPlayer(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
+            .semantics { contentDescription = media.displayName }
             .pointerInput(media.uri) {
                 detectTapGestures(onTap = { onSingleTap() })
             },

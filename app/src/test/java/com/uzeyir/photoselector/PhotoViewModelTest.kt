@@ -590,6 +590,24 @@ class PhotoViewModelTest {
         assertEquals(null, store.savedUri)
     }
 
+    @Test
+    fun sdCardDcimInitialUriIsBuiltFromStorageVolumeRootUri() {
+        assertEquals(
+            "content://com.android.externalstorage.documents/document/1234-5678%3ADCIM",
+            sdCardDcimInitialUriStringFromRootUri(
+                "content://com.android.externalstorage.documents/root/1234-5678"
+            )
+        )
+    }
+
+    @Test
+    fun sdCardDcimInitialUriFallsBackForUnsupportedRootUri() {
+        assertEquals(
+            null,
+            sdCardDcimInitialUriStringFromRootUri("content://other.provider/root/1234-5678")
+        )
+    }
+
     private fun testPhotos(count: Int): List<MediaItemData> =
         (1..count).map { index ->
             testPhoto("photo_$index.jpg")
