@@ -11,8 +11,18 @@ class LocalizationTest {
 
     @Test
     fun selectFolderIsLocalized() {
-        assertEquals("Klasör Seç", UiText.strings(AppLanguage.Turkish).selectFolder)
-        assertEquals("Select Folder", UiText.strings(AppLanguage.English).selectFolder)
+        val turkish = UiText.strings(AppLanguage.Turkish)
+        val english = UiText.strings(AppLanguage.English)
+
+        assertEquals("Fotoğraf Klasörünü Seç", turkish.folderTitle)
+        assertEquals("Klasör Seç", turkish.selectFolder)
+        assertEquals("SD Kartı Aç", turkish.openSdCard)
+        assertEquals("Güncellemeyi Kontrol Et", turkish.checkUpdate)
+
+        assertEquals("Select Photo Folder", english.folderTitle)
+        assertEquals("Select Folder", english.selectFolder)
+        assertEquals("Open SD Card", english.openSdCard)
+        assertEquals("Check for Updates", english.checkUpdate)
     }
 
     @Test
