@@ -61,10 +61,11 @@ object GitHubReleaseParser {
             ?: error("Release metadata does not contain a valid versionCode.")
         val versionName = metadata["versionName"]
             ?: error("Release metadata does not contain versionName.")
-        val apkName = metadata["apkName"]
-            ?: error("Release metadata does not contain apkName.")
-        val apkUrl = release.findAssetDownloadUrl(apkName)
-            ?: error("Release asset not found: $apkName")
+        val apkUrl = metadata["apkName"]?.let { apkName ->
+            release.findAssetDownloadUrl(apkName)
+                ?: error("Release asset not found: $apkName")
+        } ?: release.findFirstApkDownloadUrl()
+            ?: error("Release metadata does not contain apkName and no APK asset was found.")
 
         return AppUpdateInfo(
             versionCode = versionCode,
@@ -79,6 +80,17 @@ object GitHubReleaseParser {
         for (index in 0 until assets.length()) {
             val asset = assets.getJSONObject(index)
             if (asset.optString("name") == apkName) {
+                return asset.optString("browser_download_url").takeIf { it.isNotBlank() }
+            }
+        }
+        return null
+    }
+
+    private fun JSONObject.findFirstApkDownloadUrl(): String? {
+        val assets = getJSONArray("assets")
+        for (index in 0 until assets.length()) {
+            val asset = assets.getJSONObject(index)
+            if (asset.optString("name").endsWith(".apk", ignoreCase = true)) {
                 return asset.optString("browser_download_url").takeIf { it.isNotBlank() }
             }
         }

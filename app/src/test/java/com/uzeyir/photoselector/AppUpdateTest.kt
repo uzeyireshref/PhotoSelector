@@ -81,6 +81,28 @@ class AppUpdateTest {
     }
 
     @Test
+    fun parsesFirstApkAssetWhenApkNameMetadataIsMissing() {
+        val json = """
+            {
+              "html_url": "https://github.com/uzeyireshref/PhotoSelector/releases/tag/v1.0.8",
+              "body": "versionCode=9\nversionName=1.0.8\n- Fix notes",
+              "assets": [
+                {
+                  "name": "app-release.apk",
+                  "browser_download_url": "https://github.com/uzeyireshref/PhotoSelector/releases/download/v1.0.8/app-release.apk"
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val updateInfo = GitHubReleaseParser.parse(json)
+
+        assertEquals(9, updateInfo.versionCode)
+        assertEquals("1.0.8", updateInfo.versionName)
+        assertEquals("https://github.com/uzeyireshref/PhotoSelector/releases/download/v1.0.8/app-release.apk", updateInfo.apkUrl)
+    }
+
+    @Test
     fun brokenReleaseMetadataFails() {
         val json = """
             {
