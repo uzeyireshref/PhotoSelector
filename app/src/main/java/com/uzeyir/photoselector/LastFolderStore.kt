@@ -5,7 +5,7 @@ import android.content.SharedPreferences
 interface LastFolderStore {
     fun save(folderUri: String)
     fun clear()
-    fun resolveAvailableFolder(persistedReadUris: Set<String>): String?
+    fun resolveAvailableFolder(persistedReadUris: Set<String>, persistedWriteUris: Set<String>): String?
 }
 
 class SharedPreferencesLastFolderStore(
@@ -19,9 +19,9 @@ class SharedPreferencesLastFolderStore(
         preferences.edit().remove(KEY_LAST_FOLDER_URI).apply()
     }
 
-    override fun resolveAvailableFolder(persistedReadUris: Set<String>): String? {
+    override fun resolveAvailableFolder(persistedReadUris: Set<String>, persistedWriteUris: Set<String>): String? {
         val savedUri = preferences.getString(KEY_LAST_FOLDER_URI, null)
-        return if (savedUri != null && savedUri in persistedReadUris) {
+        return if (savedUri != null && savedUri in persistedReadUris && savedUri in persistedWriteUris) {
             savedUri
         } else {
             clear()

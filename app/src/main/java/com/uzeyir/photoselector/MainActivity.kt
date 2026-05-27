@@ -191,11 +191,19 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
     }
 
     LaunchedEffect(Unit) {
-        val persistedReadUris = context.contentResolver.persistedUriPermissions
+        val persistedPermissions = context.contentResolver.persistedUriPermissions
+        val persistedReadUris = persistedPermissions
             .filter { it.isReadPermission }
             .map { it.uri.toString() }
             .toSet()
-        lastFolderStore.resolveAvailableFolder(persistedReadUris)?.let { savedFolder ->
+        val persistedWriteUris = persistedPermissions
+            .filter { it.isWritePermission }
+            .map { it.uri.toString() }
+            .toSet()
+        lastFolderStore.resolveAvailableFolder(
+            persistedReadUris = persistedReadUris,
+            persistedWriteUris = persistedWriteUris
+        )?.let { savedFolder ->
             viewModel.loadMediaFromFolder(Uri.parse(savedFolder), context.contentResolver)
             viewModel.navigateTo(Screen.Gallery)
         }

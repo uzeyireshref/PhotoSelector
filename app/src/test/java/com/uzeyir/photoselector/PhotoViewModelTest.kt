@@ -555,13 +555,25 @@ class PhotoViewModelTest {
     }
 
     @Test
-    fun lastFolderStoreResolvesOnlyPersistedReadPermission() {
+    fun lastFolderStoreResolvesOnlyWhenReadAndWritePermissionsPersisted() {
         val store = FakeLastFolderStore()
         val folderUri = "content://tree/sdcard"
         store.save(folderUri)
 
-        assertEquals(folderUri, store.resolveAvailableFolder(setOf(folderUri)))
-        assertEquals(null, store.resolveAvailableFolder(emptySet()))
+        assertEquals(
+            folderUri,
+            store.resolveAvailableFolder(
+                persistedReadUris = setOf(folderUri),
+                persistedWriteUris = setOf(folderUri)
+            )
+        )
+        assertEquals(
+            null,
+            store.resolveAvailableFolder(
+                persistedReadUris = setOf(folderUri),
+                persistedWriteUris = emptySet()
+            )
+        )
     }
 
     @Test
@@ -569,7 +581,10 @@ class PhotoViewModelTest {
         val store = FakeLastFolderStore()
         store.save("content://tree/missing")
 
-        val resolved = store.resolveAvailableFolder(emptySet())
+        val resolved = store.resolveAvailableFolder(
+            persistedReadUris = emptySet(),
+            persistedWriteUris = emptySet()
+        )
 
         assertEquals(null, resolved)
         assertEquals(null, store.savedUri)
@@ -626,9 +641,9 @@ class PhotoViewModelTest {
             savedUri = null
         }
 
-        override fun resolveAvailableFolder(persistedReadUris: Set<String>): String? {
+        override fun resolveAvailableFolder(persistedReadUris: Set<String>, persistedWriteUris: Set<String>): String? {
             val current = savedUri
-            return if (current != null && current in persistedReadUris) {
+            return if (current != null && current in persistedReadUris && current in persistedWriteUris) {
                 current
             } else {
                 clear()
