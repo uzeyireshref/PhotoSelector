@@ -713,6 +713,20 @@ class PhotoViewModelTest {
     }
 
     @Test
+    fun galleryGridUsesMoreColumnsOnTabletWidth() {
+        assertEquals(3, galleryColumnCountForWidthDp(411))
+        assertEquals(3, galleryColumnCountForWidthDp(599))
+        assertEquals(4, galleryColumnCountForWidthDp(600))
+        assertEquals(4, galleryColumnCountForWidthDp(866))
+    }
+
+    @Test
+    fun thumbnailRequestSizeFollowsGridCellWidth() {
+        assertEquals(362, thumbnailRequestSizePx(widthDp = 411, density = 2.75f))
+        assertEquals(452, thumbnailRequestSizePx(widthDp = 866, density = 2.125f))
+    }
+
+    @Test
     fun setMediaItemsClearsSessionRotation() {
         val viewModel = PhotoViewModel()
         val firstPhoto = testPhoto("first.jpg")

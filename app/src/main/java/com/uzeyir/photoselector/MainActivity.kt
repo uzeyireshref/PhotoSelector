@@ -86,6 +86,7 @@ import com.uzeyir.photoselector.ui.theme.PhotoSelectorTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.ceil
+import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -159,6 +160,16 @@ fun fullscreenVideoSurfaceSize(
 
 fun shouldRenderInlineVideoPlayer(mediaUri: Uri, fullscreenVideoUri: Uri?): Boolean =
     fullscreenVideoUri != mediaUri
+
+fun galleryColumnCountForWidthDp(widthDp: Int): Int =
+    if (widthDp >= 600) 4 else 3
+
+fun thumbnailRequestSizePx(widthDp: Int, density: Float): Int {
+    val columns = galleryColumnCountForWidthDp(widthDp)
+    val contentPaddingDp = 16
+    val cellWidthDp = (widthDp - contentPaddingDp).coerceAtLeast(columns) / columns.toFloat()
+    return (cellWidthDp * density).roundToInt().coerceAtLeast(1)
+}
 
 @Composable
 fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
@@ -724,19 +735,28 @@ fun GalleryScreen(
     onPhotoClick: (Uri) -> Unit,
     onLikeToggle: (Uri) -> Unit
 ) {
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
-        state = gridState,
-        contentPadding = PaddingValues(8.dp)
-    ) {
-        items(photos, key = { it.uri }) { photo ->
-            PhotoItem(
-                media = photo,
-                isLiked = likedPhotoUris.contains(photo.uri),
-                strings = strings,
-                onClick = { onPhotoClick(photo.uri) },
-                onLikeToggle = { onLikeToggle(photo.uri) }
-            )
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val density = LocalDensity.current
+        val widthDp = maxWidth.value.roundToInt()
+        val columnCount = galleryColumnCountForWidthDp(widthDp)
+        val thumbnailSizePx = thumbnailRequestSizePx(widthDp, density.density)
+        val gridPadding = if (columnCount >= 4) 10.dp else 8.dp
+
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(columnCount),
+            state = gridState,
+            contentPadding = PaddingValues(gridPadding)
+        ) {
+            items(photos, key = { it.uri }) { photo ->
+                PhotoItem(
+                    media = photo,
+                    isLiked = likedPhotoUris.contains(photo.uri),
+                    strings = strings,
+                    thumbnailSizePx = thumbnailSizePx,
+                    onClick = { onPhotoClick(photo.uri) },
+                    onLikeToggle = { onLikeToggle(photo.uri) }
+                )
+            }
         }
     }
 }
@@ -746,14 +766,15 @@ fun PhotoItem(
     media: MediaItemData,
     isLiked: Boolean,
     strings: LocalizedStrings,
+    thumbnailSizePx: Int = 512,
     onClick: () -> Unit,
     onLikeToggle: () -> Unit
 ) {
     val context = LocalContext.current
-    val thumbnailRequest = remember(media.uri) {
+    val thumbnailRequest = remember(media.uri, thumbnailSizePx) {
         ImageRequest.Builder(context)
             .data(media.uri)
-            .size(512)
+            .size(thumbnailSizePx)
             .crossfade(true)
             .build()
     }
@@ -1573,11 +1594,13 @@ fun SelectionPriceSummary(
     totalPayablePrice: Int,
     strings: LocalizedStrings,
     textColor: Color = LocalContentColor.current,
-    discountedColor: Color = Color(0xFF2E7D32)
+    discountedColor: Color = Color(0xFF2E7D32),
+    modifier: Modifier = Modifier
 ) {
     Surface(
         color = textColor.copy(alpha = 0.08f),
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(8.dp),
+        modifier = modifier
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -1789,17 +1812,14 @@ fun BottomPriceBar(
     strings: LocalizedStrings
 ) {
     Surface(tonalElevation = 8.dp) {
-        Row(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(strings.selectedCount(photoCount + videoCount))
-                SelectionPriceSummary(
+            val isTablet = maxWidth >= 600.dp
+            if (isTablet) {
+                TabletBottomPriceBarContent(
                     photoCount = photoCount,
                     videoCount = videoCount,
                     photoOriginalPrice = photoOriginalPrice,
@@ -1807,12 +1827,243 @@ fun BottomPriceBar(
                     videoOriginalPrice = videoOriginalPrice,
                     videoPayablePrice = videoPayablePrice,
                     totalPayablePrice = totalPayablePrice,
+                    onReviewClick = onReviewClick,
+                    buttonText = buttonText,
+                    strings = strings
+                )
+            } else {
+                PhoneBottomPriceBarContent(
+                    photoCount = photoCount,
+                    videoCount = videoCount,
+                    photoOriginalPrice = photoOriginalPrice,
+                    photoPayablePrice = photoPayablePrice,
+                    videoOriginalPrice = videoOriginalPrice,
+                    videoPayablePrice = videoPayablePrice,
+                    totalPayablePrice = totalPayablePrice,
+                    onReviewClick = onReviewClick,
+                    buttonText = buttonText,
                     strings = strings
                 )
             }
-            Button(onClick = onReviewClick) {
-                Text(buttonText)
+        }
+    }
+}
+
+@Composable
+private fun PhoneBottomPriceBarContent(
+    photoCount: Int,
+    videoCount: Int,
+    photoOriginalPrice: Int,
+    photoPayablePrice: Int,
+    videoOriginalPrice: Int,
+    videoPayablePrice: Int,
+    totalPayablePrice: Int,
+    onReviewClick: () -> Unit,
+    buttonText: String,
+    strings: LocalizedStrings
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(strings.selectedCount(photoCount + videoCount))
+            SelectionPriceSummary(
+                photoCount = photoCount,
+                videoCount = videoCount,
+                photoOriginalPrice = photoOriginalPrice,
+                photoPayablePrice = photoPayablePrice,
+                videoOriginalPrice = videoOriginalPrice,
+                videoPayablePrice = videoPayablePrice,
+                totalPayablePrice = totalPayablePrice,
+                strings = strings
+            )
+        }
+        Button(onClick = onReviewClick) {
+            Text(buttonText)
+        }
+    }
+}
+
+@Composable
+private fun TabletBottomPriceBarContent(
+    photoCount: Int,
+    videoCount: Int,
+    photoOriginalPrice: Int,
+    photoPayablePrice: Int,
+    videoOriginalPrice: Int,
+    videoPayablePrice: Int,
+    totalPayablePrice: Int,
+    onReviewClick: () -> Unit,
+    buttonText: String,
+    strings: LocalizedStrings
+) {
+    val selectedCount = photoCount + videoCount
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 28.dp, vertical = 18.dp),
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SelectionMetricCard(
+            label = strings.selected,
+            value = selectedCount.toString(),
+            supportingText = "${strings.photo}: $photoCount   ${strings.video}: $videoCount",
+            modifier = Modifier.weight(0.9f)
+        )
+        TabletPriceBreakdownCard(
+            photoCount = photoCount,
+            videoCount = videoCount,
+            photoOriginalPrice = photoOriginalPrice,
+            photoPayablePrice = photoPayablePrice,
+            videoOriginalPrice = videoOriginalPrice,
+            videoPayablePrice = videoPayablePrice,
+            strings = strings,
+            modifier = Modifier.weight(1.2f)
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = strings.total,
+                style = MaterialTheme.typography.labelLarge,
+                color = LocalContentColor.current.copy(alpha = 0.68f)
+            )
+            Text(
+                text = strings.price(totalPayablePrice),
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Button(
+                onClick = onReviewClick,
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+                modifier = Modifier.widthIn(min = 220.dp)
+            ) {
+                Text(buttonText, style = MaterialTheme.typography.titleMedium)
             }
+        }
+    }
+}
+
+@Composable
+private fun TabletPriceBreakdownCard(
+    photoCount: Int,
+    videoCount: Int,
+    photoOriginalPrice: Int,
+    photoPayablePrice: Int,
+    videoOriginalPrice: Int,
+    videoPayablePrice: Int,
+    strings: LocalizedStrings,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+        shape = RoundedCornerShape(8.dp),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = strings.priceBreakdown,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.76f)
+            )
+            TabletPriceLine(
+                label = "${strings.photo}: $photoCount",
+                originalPrice = photoOriginalPrice,
+                payablePrice = photoPayablePrice,
+                strings = strings
+            )
+            TabletPriceLine(
+                label = "${strings.video}: $videoCount",
+                originalPrice = videoOriginalPrice,
+                payablePrice = videoPayablePrice,
+                strings = strings
+            )
+        }
+    }
+}
+
+@Composable
+private fun TabletPriceLine(
+    label: String,
+    originalPrice: Int,
+    payablePrice: Int,
+    strings: LocalizedStrings
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (originalPrice > payablePrice) {
+                Text(
+                    text = strings.price(originalPrice),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.56f),
+                    textDecoration = TextDecoration.LineThrough
+                )
+            }
+            Text(
+                text = strings.price(payablePrice),
+                style = MaterialTheme.typography.titleMedium,
+                color = if (originalPrice > payablePrice) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+private fun SelectionMetricCard(
+    label: String,
+    value: String,
+    supportingText: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+        shape = RoundedCornerShape(8.dp),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = supportingText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
