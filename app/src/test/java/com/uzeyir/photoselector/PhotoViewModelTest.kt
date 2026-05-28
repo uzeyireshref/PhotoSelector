@@ -68,6 +68,34 @@ class PhotoViewModelTest {
     }
 
     @Test
+    fun likedPhotoUriSetTracksTogglesForFastMembershipChecks() {
+        val viewModel = PhotoViewModel()
+        val photos = testPhotos(2)
+        viewModel.setPhotos(photos)
+
+        viewModel.toggleLike(photos[0].uri)
+        viewModel.toggleLike(photos[1].uri)
+        viewModel.toggleLike(photos[0].uri)
+
+        assertEquals(setOf(photos[1].uri), viewModel.likedPhotoUriSet)
+        assertEquals(listOf(photos[1].uri), viewModel.likedPhotos)
+    }
+
+    @Test
+    fun mediaLoadVersionChangesOnlyWhenMediaItemsAreReplaced() {
+        val viewModel = PhotoViewModel()
+        val initialVersion = viewModel.mediaLoadVersion
+        val photos = testPhotos(1)
+
+        viewModel.setMediaItems(photos)
+        val loadedVersion = viewModel.mediaLoadVersion
+        viewModel.toggleLike(photos[0].uri)
+
+        assertEquals(initialVersion + 1, loadedVersion)
+        assertEquals(loadedVersion, viewModel.mediaLoadVersion)
+    }
+
+    @Test
     fun priceAtThreePhotosHasNoDiscount() {
         val viewModel = PhotoViewModel()
         val photos = testPhotos(3)
@@ -423,9 +451,23 @@ class PhotoViewModelTest {
 
     @Test
     fun exportCannotStartWhileCopying() {
-        assertEquals(false, shouldBeginExport(ExportStatus.Copying))
+        assertEquals(false, shouldBeginExport(ExportStatus.Copying()))
         assertEquals(true, shouldBeginExport(ExportStatus.Idle))
         assertEquals(true, shouldBeginExport(ExportStatus.Success(folderName = "done", copiedFiles = 1)))
+    }
+
+    @Test
+    fun exportProgressFractionIsBoundedByCopiedAndTotalFiles() {
+        assertEquals(0f, ExportStatus.Copying(copiedFiles = 0, totalFiles = 4).progressFraction)
+        assertEquals(0.5f, ExportStatus.Copying(copiedFiles = 2, totalFiles = 4).progressFraction)
+        assertEquals(1f, ExportStatus.Copying(copiedFiles = 5, totalFiles = 4).progressFraction)
+        assertEquals(null, ExportStatus.Copying(copiedFiles = 0, totalFiles = 0).progressFraction)
+    }
+
+    @Test
+    fun exportProgressLabelShowsCopiedAndTotalCounts() {
+        assertEquals("2/5", exportProgressCountLabel(ExportStatus.Copying(copiedFiles = 2, totalFiles = 5)))
+        assertEquals(null, exportProgressCountLabel(ExportStatus.Copying()))
     }
 
     @Test
@@ -642,6 +684,15 @@ class PhotoViewModelTest {
                 rotationDegrees = 90
             )
         )
+    }
+
+    @Test
+    fun inlineVideoPlayerIsHiddenForFullscreenVideoUriOnly() {
+        val videoUri = FakeUri("videos/clip.mp4")
+
+        assertEquals(true, shouldRenderInlineVideoPlayer(videoUri, fullscreenVideoUri = null))
+        assertEquals(false, shouldRenderInlineVideoPlayer(videoUri, fullscreenVideoUri = videoUri))
+        assertEquals(true, shouldRenderInlineVideoPlayer(videoUri, fullscreenVideoUri = FakeUri("videos/other.mp4")))
     }
 
     @Test

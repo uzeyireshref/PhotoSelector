@@ -31,7 +31,7 @@ class PhotoDetailScreenTest {
                 PhotoDetailScreen(
                     photos = media,
                     selectedPhotoIndex = selectedIndex,
-                    likedPhotos = emptyList(),
+                    likedPhotoUris = emptySet(),
                     photoCount = 1,
                     videoCount = 0,
                     photoOriginalPrice = 300,
@@ -72,7 +72,7 @@ class PhotoDetailScreenTest {
                 PhotoDetailScreen(
                     photos = media,
                     selectedPhotoIndex = 0,
-                    likedPhotos = emptyList(),
+                    likedPhotoUris = emptySet(),
                     photoCount = 0,
                     videoCount = 1,
                     photoOriginalPrice = 0,

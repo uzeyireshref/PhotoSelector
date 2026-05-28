@@ -81,6 +81,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.uzeyir.photoselector.ui.theme.PhotoSelectorTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -156,14 +157,18 @@ fun fullscreenVideoSurfaceSize(
     }
 }
 
+fun shouldRenderInlineVideoPlayer(mediaUri: Uri, fullscreenVideoUri: Uri?): Boolean =
+    fullscreenVideoUri != mediaUri
+
 @Composable
 fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
     val context = LocalContext.current
     val currentScreen = viewModel.currentScreen
-    val likedPhotos = viewModel.likedPhotos
+    val likedPhotoUriSet = viewModel.likedPhotoUriSet
     val exportStatus = viewModel.exportStatus
     val exportSummary = viewModel.exportSummary
     val photos = viewModel.photos
+    val isLoadingMedia = viewModel.isLoadingMedia
     val viewerPhotos = viewModel.viewerPhotos
     val likedMediaItems = viewModel.likedMediaItems
     val viewerSource = viewModel.viewerSource
@@ -185,7 +190,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
     val strings = UiText.strings(language)
     var sdCardOptions by remember { mutableStateOf<List<StorageVolume>>(emptyList()) }
     val galleryGridState = rememberLazyGridState()
-    val galleryContentKey = photos.joinToString(separator = "|") { it.uri.toString() }
+    val galleryContentKey = viewModel.mediaLoadVersion
 
     BackHandler(enabled = currentScreen != Screen.FolderSelection) {
         viewModel.handleBack()
@@ -346,38 +351,41 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
             when (currentScreen) {
-                Screen.FolderSelection -> FolderSelectionScreen(onFolderSelected = {
-                    openDocumentTree()
-                }, onOpenSdCard = {
-                    openSdCardPicker()
-                }, updateStatus = updateStatus, language = language, onLanguageSelected = { selectedLanguage ->
-                    language = selectedLanguage
-                }, strings = strings, onCheckUpdate = {
-                    coroutineScope.launch {
-                        updateStatus = AppUpdateStatus.Checking
-                        runCatching {
-                            val latestRelease = updateRepository.fetchLatestRelease()
-                            when (val decision = UpdatePolicy.decide(BuildConfig.VERSION_CODE, latestRelease)) {
-                                UpdateDecision.UpToDate -> {
-                                    updateStatus = AppUpdateStatus.UpToDate
+                Screen.FolderSelection -> FolderSelectionScreen(
+                    onFolderSelected = { openDocumentTree() },
+                    onOpenSdCard = { openSdCardPicker() },
+                    updateStatus = updateStatus,
+                    isLoadingMedia = isLoadingMedia,
+                    language = language,
+                    onLanguageSelected = { selectedLanguage -> language = selectedLanguage },
+                    strings = strings,
+                    onCheckUpdate = {
+                        coroutineScope.launch {
+                            updateStatus = AppUpdateStatus.Checking
+                            runCatching {
+                                val latestRelease = updateRepository.fetchLatestRelease()
+                                when (val decision = UpdatePolicy.decide(BuildConfig.VERSION_CODE, latestRelease)) {
+                                    UpdateDecision.UpToDate -> {
+                                        updateStatus = AppUpdateStatus.UpToDate
+                                    }
+                                    is UpdateDecision.UpdateAvailable -> {
+                                        updateStatus = AppUpdateStatus.Available(decision.updateInfo.versionName)
+                                        delay(450)
+                                        updateStatus = AppUpdateStatus.Downloading
+                                        val apkFile = updateRepository.downloadApk(context, decision.updateInfo)
+                                        updateStatus = AppUpdateStatus.ReadyToInstall
+                                        ApkInstaller.openInstaller(context, apkFile)
+                                    }
                                 }
-                                is UpdateDecision.UpdateAvailable -> {
-                                    updateStatus = AppUpdateStatus.Available(decision.updateInfo.versionName)
-                                    delay(450)
-                                    updateStatus = AppUpdateStatus.Downloading
-                                    val apkFile = updateRepository.downloadApk(context, decision.updateInfo)
-                                    updateStatus = AppUpdateStatus.ReadyToInstall
-                                    ApkInstaller.openInstaller(context, apkFile)
-                                }
+                            }.onFailure {
+                                updateStatus = AppUpdateStatus.Error
                             }
-                        }.onFailure {
-                            updateStatus = AppUpdateStatus.Error
                         }
                     }
-                })
+                )
                 Screen.Gallery -> GalleryScreen(
                     photos = photos,
-                    likedPhotos = likedPhotos,
+                    likedPhotoUris = likedPhotoUriSet,
                     strings = strings,
                     gridState = galleryGridState,
                     onPhotoClick = { uri -> viewModel.openPhoto(uri) },
@@ -386,7 +394,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                 Screen.PhotoDetail -> PhotoDetailScreen(
                     photos = viewerPhotos,
                     selectedPhotoIndex = selectedPhotoIndex,
-                    likedPhotos = likedPhotos,
+                    likedPhotoUris = likedPhotoUriSet,
                     photoCount = viewModel.selectedPhotoCount,
                     videoCount = viewModel.selectedVideoCount,
                     photoOriginalPrice = viewModel.photoBasePrice,
@@ -461,6 +469,7 @@ fun FolderSelectionScreen(
     onFolderSelected: () -> Unit,
     onOpenSdCard: () -> Unit,
     updateStatus: AppUpdateStatus,
+    isLoadingMedia: Boolean,
     language: AppLanguage,
     onLanguageSelected: (AppLanguage) -> Unit,
     strings: LocalizedStrings,
@@ -506,6 +515,7 @@ fun FolderSelectionScreen(
                 onFolderSelected = onFolderSelected,
                 onOpenSdCard = onOpenSdCard,
                 updateStatus = updateStatus,
+                isLoadingMedia = isLoadingMedia,
                 strings = strings,
                 onCheckUpdate = onCheckUpdate,
                 modifier = Modifier.widthIn(max = 440.dp)
@@ -532,6 +542,7 @@ private fun StartScreenPanel(
     onFolderSelected: () -> Unit,
     onOpenSdCard: () -> Unit,
     updateStatus: AppUpdateStatus,
+    isLoadingMedia: Boolean,
     strings: LocalizedStrings,
     onCheckUpdate: () -> Unit,
     modifier: Modifier = Modifier
@@ -564,6 +575,7 @@ private fun StartScreenPanel(
             Spacer(modifier = Modifier.height(24.dp))
             Button(
                 onClick = onFolderSelected,
+                enabled = !isLoadingMedia,
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF17423C),
@@ -580,6 +592,7 @@ private fun StartScreenPanel(
             Spacer(modifier = Modifier.height(12.dp))
             OutlinedButton(
                 onClick = onOpenSdCard,
+                enabled = !isLoadingMedia,
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = Color(0xFF17423C)
@@ -599,6 +612,10 @@ private fun StartScreenPanel(
                 color = Color(0xFF6E7A76)
             )
             Spacer(modifier = Modifier.height(22.dp))
+            if (isLoadingMedia) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(14.dp))
+            }
             UpdateCheckButton(
                 updateStatus = updateStatus,
                 strings = strings,
@@ -701,7 +718,7 @@ fun UpdateCheckButton(
 @Composable
 fun GalleryScreen(
     photos: List<MediaItemData>,
-    likedPhotos: List<Uri>,
+    likedPhotoUris: Set<Uri>,
     strings: LocalizedStrings,
     gridState: LazyGridState,
     onPhotoClick: (Uri) -> Unit,
@@ -715,7 +732,7 @@ fun GalleryScreen(
         items(photos, key = { it.uri }) { photo ->
             PhotoItem(
                 media = photo,
-                isLiked = likedPhotos.contains(photo.uri),
+                isLiked = likedPhotoUris.contains(photo.uri),
                 strings = strings,
                 onClick = { onPhotoClick(photo.uri) },
                 onLikeToggle = { onLikeToggle(photo.uri) }
@@ -732,6 +749,15 @@ fun PhotoItem(
     onClick: () -> Unit,
     onLikeToggle: () -> Unit
 ) {
+    val context = LocalContext.current
+    val thumbnailRequest = remember(media.uri) {
+        ImageRequest.Builder(context)
+            .data(media.uri)
+            .size(512)
+            .crossfade(true)
+            .build()
+    }
+
     Card(
         modifier = Modifier
             .padding(4.dp)
@@ -747,7 +773,7 @@ fun PhotoItem(
                     contentAlignment = Alignment.Center
                 ) {
                     AsyncImage(
-                        model = media.uri,
+                        model = thumbnailRequest,
                         contentDescription = media.displayName,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
@@ -761,7 +787,7 @@ fun PhotoItem(
                 }
             } else {
                 AsyncImage(
-                    model = media.uri,
+                    model = thumbnailRequest,
                     contentDescription = media.displayName,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
@@ -785,7 +811,7 @@ fun PhotoItem(
 fun PhotoDetailScreen(
     photos: List<MediaItemData>,
     selectedPhotoIndex: Int,
-    likedPhotos: List<Uri>,
+    likedPhotoUris: Set<Uri>,
     photoCount: Int,
     videoCount: Int,
     photoOriginalPrice: Int,
@@ -818,7 +844,7 @@ fun PhotoDetailScreen(
     var controlsVisible by remember { mutableStateOf(true) }
     var fullscreenVideo by remember { mutableStateOf<MediaItemData?>(null) }
     val currentPhoto = photos[pagerState.currentPage]
-    val isLiked = likedPhotos.contains(currentPhoto.uri)
+    val isLiked = likedPhotoUris.contains(currentPhoto.uri)
 
     BackHandler(enabled = fullscreenVideo != null) {
         fullscreenVideo = null
@@ -861,13 +887,15 @@ fun PhotoDetailScreen(
             val media = photos[page]
             val rotationDegrees = if (media.mediaType == MediaType.Photo) rotationFor(media.uri) else 0
             if (media.mediaType == MediaType.Video) {
-                VideoPlayer(
-                    media = media,
-                    isActive = page == pagerState.currentPage && fullscreenVideo == null,
-                    rotationDegrees = rotationDegrees,
-                    controlsBottomInset = VideoControlsBottomInset,
-                    onSingleTap = { toggleControls() }
-                )
+                if (shouldRenderInlineVideoPlayer(media.uri, fullscreenVideo?.uri)) {
+                    VideoPlayer(
+                        media = media,
+                        isActive = page == pagerState.currentPage && fullscreenVideo == null,
+                        rotationDegrees = rotationDegrees,
+                        controlsBottomInset = VideoControlsBottomInset,
+                        onSingleTap = { toggleControls() }
+                    )
+                }
             } else {
                 ZoomablePhoto(
                     photo = media,
@@ -1691,10 +1719,31 @@ fun ConfirmationScreen(
                 }
             }
 
-            ExportStatus.Copying -> {
-                LinearProgressIndicator(modifier = Modifier.widthIn(min = 320.dp, max = 520.dp))
+            is ExportStatus.Copying -> {
+                val progressFraction = exportStatus.progressFraction
+                if (progressFraction != null) {
+                    LinearProgressIndicator(
+                        progress = { progressFraction },
+                        modifier = Modifier.widthIn(min = 320.dp, max = 520.dp)
+                    )
+                } else {
+                    LinearProgressIndicator(modifier = Modifier.widthIn(min = 320.dp, max = 520.dp))
+                }
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(strings.copyingSelectedFiles)
+                exportProgressCountLabel(exportStatus)?.let { progressLabel ->
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(progressLabel, style = MaterialTheme.typography.bodyMedium)
+                }
+                exportStatus.currentFileName?.let { fileName ->
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = fileName,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
 
             is ExportStatus.Success -> {

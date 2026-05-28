@@ -29,6 +29,7 @@ class FolderSelectionScreenTest {
                     onFolderSelected = {},
                     onOpenSdCard = {},
                     updateStatus = AppUpdateStatus.Idle,
+                    isLoadingMedia = false,
                     language = language,
                     onLanguageSelected = { language = it },
                     strings = strings,
@@ -52,7 +53,7 @@ class FolderSelectionScreenTest {
             PhotoSelectorTheme(dynamicColor = false) {
                 GalleryScreen(
                     photos = listOf(galleryPhoto("IMG_0001.JPG")),
-                    likedPhotos = emptyList(),
+                    likedPhotoUris = emptySet(),
                     strings = UiText.strings(AppLanguage.Turkish),
                     gridState = gridState,
                     onPhotoClick = {},
