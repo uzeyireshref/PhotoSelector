@@ -34,6 +34,8 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
@@ -983,6 +985,10 @@ fun PhotoDetailScreen(
             VideoCompactBottomBar(
                 photoCount = photoCount,
                 videoCount = videoCount,
+                photoOriginalPrice = photoOriginalPrice,
+                photoPayablePrice = photoPayablePrice,
+                videoOriginalPrice = videoOriginalPrice,
+                videoPayablePrice = videoPayablePrice,
                 totalPayablePrice = totalPayablePrice,
                 isLiked = isLiked,
                 strings = strings,
@@ -1478,20 +1484,9 @@ fun FullscreenBottomBar(
         color = Color.Black.copy(alpha = 0.62f),
         modifier = modifier.fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(strings.selectedCount(photoCount + videoCount), color = Color.White)
-                SelectionPriceSummary(
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            if (maxWidth >= 600.dp) {
+                TabletFullscreenBottomBarContent(
                     photoCount = photoCount,
                     videoCount = videoCount,
                     photoOriginalPrice = photoOriginalPrice,
@@ -1500,70 +1495,74 @@ fun FullscreenBottomBar(
                     videoPayablePrice = videoPayablePrice,
                     totalPayablePrice = totalPayablePrice,
                     strings = strings,
-                    textColor = Color.White,
-                    discountedColor = Color(0xFF81C784)
+                    isLiked = isLiked,
+                    onLikeToggle = onLikeToggle,
+                    onReviewClick = onReviewClick
                 )
-            }
-            Spacer(modifier = Modifier.width(14.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                FilledIconButton(
-                    onClick = onLikeToggle,
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = if (isLiked) Color.White else Color.White.copy(alpha = 0.14f),
-                        contentColor = if (isLiked) Color.Red else Color.White
-                    )
-                ) {
-                    Icon(
-                        imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        contentDescription = strings.like
-                    )
-                }
-                Button(onClick = onReviewClick) {
-                    Text(strings.review)
-                }
+            } else {
+                PhoneFullscreenBottomBarContent(
+                    photoCount = photoCount,
+                    videoCount = videoCount,
+                    photoOriginalPrice = photoOriginalPrice,
+                    photoPayablePrice = photoPayablePrice,
+                    videoOriginalPrice = videoOriginalPrice,
+                    videoPayablePrice = videoPayablePrice,
+                    totalPayablePrice = totalPayablePrice,
+                    strings = strings,
+                    isLiked = isLiked,
+                    onLikeToggle = onLikeToggle,
+                    onReviewClick = onReviewClick
+                )
             }
         }
     }
 }
 
 @Composable
-fun VideoCompactBottomBar(
+private fun PhoneFullscreenBottomBarContent(
     photoCount: Int,
     videoCount: Int,
+    photoOriginalPrice: Int,
+    photoPayablePrice: Int,
+    videoOriginalPrice: Int,
+    videoPayablePrice: Int,
     totalPayablePrice: Int,
-    isLiked: Boolean,
     strings: LocalizedStrings,
+    isLiked: Boolean,
     onLikeToggle: () -> Unit,
-    onReviewClick: () -> Unit,
-    modifier: Modifier = Modifier
+    onReviewClick: () -> Unit
 ) {
-    Surface(
-        color = Color.Black.copy(alpha = 0.68f),
-        modifier = modifier.fillMaxWidth()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 24.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 18.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "${strings.photo}: $photoCount  ${strings.video}: $videoCount",
-                    color = Color.White.copy(alpha = 0.78f),
-                    style = MaterialTheme.typography.labelLarge
-                )
-                Text(
-                    text = strings.price(totalPayablePrice),
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleMedium
-                )
-            }
+            Text(strings.selectedCount(photoCount + videoCount), color = Color.White)
+            SelectionPriceSummary(
+                photoCount = photoCount,
+                videoCount = videoCount,
+                photoOriginalPrice = photoOriginalPrice,
+                photoPayablePrice = photoPayablePrice,
+                videoOriginalPrice = videoOriginalPrice,
+                videoPayablePrice = videoPayablePrice,
+                totalPayablePrice = totalPayablePrice,
+                strings = strings,
+                textColor = Color.White,
+                discountedColor = Color(0xFF81C784)
+            )
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             FilledIconButton(
                 onClick = onLikeToggle,
                 colors = IconButtonDefaults.filledIconButtonColors(
@@ -1578,6 +1577,279 @@ fun VideoCompactBottomBar(
             }
             Button(onClick = onReviewClick) {
                 Text(strings.review)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TabletFullscreenBottomBarContent(
+    photoCount: Int,
+    videoCount: Int,
+    photoOriginalPrice: Int,
+    photoPayablePrice: Int,
+    videoOriginalPrice: Int,
+    videoPayablePrice: Int,
+    totalPayablePrice: Int,
+    strings: LocalizedStrings,
+    isLiked: Boolean,
+    onLikeToggle: () -> Unit,
+    onReviewClick: () -> Unit
+) {
+    val selectedCount = photoCount + videoCount
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 28.dp, vertical = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        DarkSelectionMetricCard(
+            label = strings.selected,
+            value = selectedCount.toString(),
+            supportingText = "${strings.photo}: $photoCount   ${strings.video}: $videoCount",
+            modifier = Modifier.weight(0.9f)
+        )
+        DarkTabletPriceBreakdownCard(
+            photoCount = photoCount,
+            videoCount = videoCount,
+            photoOriginalPrice = photoOriginalPrice,
+            photoPayablePrice = photoPayablePrice,
+            videoOriginalPrice = videoOriginalPrice,
+            videoPayablePrice = videoPayablePrice,
+            strings = strings,
+            modifier = Modifier.weight(1.2f)
+        )
+        Row(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = strings.total,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.White.copy(alpha = 0.68f)
+                )
+                Text(
+                    text = strings.price(totalPayablePrice),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = Color.White
+                )
+            }
+            FilledIconButton(
+                onClick = onLikeToggle,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = if (isLiked) Color.White else Color.White.copy(alpha = 0.14f),
+                    contentColor = if (isLiked) Color.Red else Color.White
+                )
+            ) {
+                Icon(
+                    imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = strings.like
+                )
+            }
+            Button(
+                onClick = onReviewClick,
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 22.dp, vertical = 12.dp)
+            ) {
+                Text(strings.review, style = MaterialTheme.typography.titleMedium)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DarkSelectionMetricCard(
+    label: String,
+    value: String,
+    supportingText: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = Color.White.copy(alpha = 0.10f),
+        shape = RoundedCornerShape(8.dp),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.White.copy(alpha = 0.72f)
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.headlineSmall,
+                color = Color.White
+            )
+            Text(
+                text = supportingText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.74f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun DarkTabletPriceBreakdownCard(
+    photoCount: Int,
+    videoCount: Int,
+    photoOriginalPrice: Int,
+    photoPayablePrice: Int,
+    videoOriginalPrice: Int,
+    videoPayablePrice: Int,
+    strings: LocalizedStrings,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = Color.White.copy(alpha = 0.10f),
+        shape = RoundedCornerShape(8.dp),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = strings.priceBreakdown,
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.White.copy(alpha = 0.72f)
+            )
+            DarkTabletPriceLine(
+                label = "${strings.photo}: $photoCount",
+                originalPrice = photoOriginalPrice,
+                payablePrice = photoPayablePrice,
+                strings = strings
+            )
+            DarkTabletPriceLine(
+                label = "${strings.video}: $videoCount",
+                originalPrice = videoOriginalPrice,
+                payablePrice = videoPayablePrice,
+                strings = strings
+            )
+        }
+    }
+}
+
+@Composable
+private fun DarkTabletPriceLine(
+    label: String,
+    originalPrice: Int,
+    payablePrice: Int,
+    strings: LocalizedStrings
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White.copy(alpha = 0.86f)
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (originalPrice > payablePrice) {
+                Text(
+                    text = strings.price(originalPrice),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.50f),
+                    textDecoration = TextDecoration.LineThrough
+                )
+            }
+            Text(
+                text = strings.price(payablePrice),
+                style = MaterialTheme.typography.titleMedium,
+                color = if (originalPrice > payablePrice) Color(0xFF81C784) else Color.White
+            )
+        }
+    }
+}
+
+@Composable
+fun VideoCompactBottomBar(
+    photoCount: Int,
+    videoCount: Int,
+    photoOriginalPrice: Int,
+    photoPayablePrice: Int,
+    videoOriginalPrice: Int,
+    videoPayablePrice: Int,
+    totalPayablePrice: Int,
+    isLiked: Boolean,
+    strings: LocalizedStrings,
+    onLikeToggle: () -> Unit,
+    onReviewClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = Color.Black.copy(alpha = 0.68f),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            if (maxWidth >= 600.dp) {
+                TabletFullscreenBottomBarContent(
+                    photoCount = photoCount,
+                    videoCount = videoCount,
+                    photoOriginalPrice = photoOriginalPrice,
+                    photoPayablePrice = photoPayablePrice,
+                    videoOriginalPrice = videoOriginalPrice,
+                    videoPayablePrice = videoPayablePrice,
+                    totalPayablePrice = totalPayablePrice,
+                    strings = strings,
+                    isLiked = isLiked,
+                    onLikeToggle = onLikeToggle,
+                    onReviewClick = onReviewClick
+                )
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 18.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "${strings.photo}: $photoCount  ${strings.video}: $videoCount",
+                            color = Color.White.copy(alpha = 0.78f),
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                        Text(
+                            text = strings.price(totalPayablePrice),
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                    FilledIconButton(
+                        onClick = onLikeToggle,
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = if (isLiked) Color.White else Color.White.copy(alpha = 0.14f),
+                            contentColor = if (isLiked) Color.Red else Color.White
+                        )
+                    ) {
+                        Icon(
+                            imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = strings.like
+                        )
+                    }
+                    Button(onClick = onReviewClick) {
+                        Text(strings.review)
+                    }
+                }
             }
         }
     }
@@ -1758,6 +2030,12 @@ fun ConfirmationScreen(
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(progressLabel, style = MaterialTheme.typography.bodyMedium)
                 }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = strings.copiedFileCount(copiedExportFileNames(exportStatus).size),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF2E7D32)
+                )
                 exportStatus.currentFileName?.let { fileName ->
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -1766,6 +2044,10 @@ fun ConfirmationScreen(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+                if (exportStatus.files.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    ExportFileProgressList(exportStatus = exportStatus)
                 }
             }
 
@@ -1797,6 +2079,66 @@ fun ConfirmationScreen(
         }
     }
 }
+
+@Composable
+private fun ExportFileProgressList(exportStatus: ExportStatus.Copying) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.56f),
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier
+            .widthIn(min = 320.dp, max = 560.dp)
+            .heightIn(max = 180.dp)
+    ) {
+        LazyColumn(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            itemsIndexed(exportStatus.files) { index, file ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${index + 1}.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.70f),
+                        modifier = Modifier.width(30.dp)
+                    )
+                    Text(
+                        text = file.fileName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = exportFileStateLabel(file.state),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = exportFileStateColor(file.state)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun exportFileStateLabel(state: ExportFileState): String =
+    when (state) {
+        ExportFileState.Copied -> "OK"
+        ExportFileState.Copying -> "..."
+        ExportFileState.Pending -> "-"
+    }
+
+@Composable
+private fun exportFileStateColor(state: ExportFileState): Color =
+    when (state) {
+        ExportFileState.Copied -> Color(0xFF2E7D32)
+        ExportFileState.Copying -> MaterialTheme.colorScheme.primary
+        ExportFileState.Pending -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.50f)
+    }
 
 @Composable
 fun BottomPriceBar(

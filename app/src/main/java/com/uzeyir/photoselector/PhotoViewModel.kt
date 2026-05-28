@@ -32,7 +32,8 @@ data class MediaItemData(
     val displayName: String,
     val mimeType: String = "image/jpeg",
     val mediaType: MediaType = MediaType.Photo,
-    val lastModified: Long = 0
+    val lastModified: Long = 0,
+    val sizeBytes: Long? = null
 )
 
 typealias PhotoItemData = MediaItemData
@@ -41,7 +42,8 @@ data class FolderDocumentData(
     val uri: Uri,
     val displayName: String,
     val mimeType: String,
-    val lastModified: Long = 0
+    val lastModified: Long = 0,
+    val sizeBytes: Long? = null
 )
 
 data class ExportSummary(
@@ -58,12 +60,24 @@ data class PricingDiscountTier(
     val discountPercent: Int
 )
 
+enum class ExportFileState {
+    Pending,
+    Copying,
+    Copied
+}
+
+data class ExportFileProgress(
+    val fileName: String,
+    val state: ExportFileState
+)
+
 sealed class ExportStatus {
     data object Idle : ExportStatus()
     data class Copying(
         val copiedFiles: Int = 0,
         val totalFiles: Int = 0,
-        val currentFileName: String? = null
+        val currentFileName: String? = null,
+        val files: List<ExportFileProgress> = emptyList()
     ) : ExportStatus() {
         val progressFraction: Float?
             get() = if (totalFiles > 0) {
@@ -107,7 +121,8 @@ fun FolderDocumentData.toMediaItemOrNull(): MediaItemData? {
         displayName = displayName,
         mimeType = mimeType,
         mediaType = type,
-        lastModified = lastModified
+        lastModified = lastModified,
+        sizeBytes = sizeBytes
     )
 }
 
@@ -452,11 +467,12 @@ class PhotoViewModel : ViewModel() {
                     treeUri = treeUri,
                     folderName = folderName,
                     selectedMedia = selectedMedia,
-                    onProgress = { copiedFiles, totalFiles, currentFileName ->
+                    onProgress = { copiedFiles, totalFiles, currentFileName, files ->
                         exportStatus = ExportStatus.Copying(
                             copiedFiles = copiedFiles,
                             totalFiles = totalFiles,
-                            currentFileName = currentFileName
+                            currentFileName = currentFileName,
+                            files = files
                         )
                     }
                 )
@@ -504,7 +520,8 @@ class PhotoViewModel : ViewModel() {
             DocumentsContract.Document.COLUMN_DOCUMENT_ID,
             DocumentsContract.Document.COLUMN_MIME_TYPE,
             DocumentsContract.Document.COLUMN_DISPLAY_NAME,
-            DocumentsContract.Document.COLUMN_LAST_MODIFIED
+            DocumentsContract.Document.COLUMN_LAST_MODIFIED,
+            DocumentsContract.Document.COLUMN_SIZE
         )
 
         val documents = mutableListOf<FolderDocumentData>()
@@ -514,6 +531,7 @@ class PhotoViewModel : ViewModel() {
             val mimeColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
             val nameColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
             val lastModifiedColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_LAST_MODIFIED)
+            val sizeColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE)
 
             while (cursor.moveToNext()) {
                 val id = cursor.getString(idColumn)
@@ -524,12 +542,18 @@ class PhotoViewModel : ViewModel() {
                 } else {
                     0L
                 }
+                val sizeBytes = if (sizeColumn >= 0 && !cursor.isNull(sizeColumn)) {
+                    cursor.getLong(sizeColumn).takeIf { it >= 0L }
+                } else {
+                    null
+                }
                 val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, id)
                 val document = FolderDocumentData(
                     uri = uri,
                     displayName = name,
                     mimeType = mime,
-                    lastModified = lastModified
+                    lastModified = lastModified,
+                    sizeBytes = sizeBytes
                 )
                 if (mime != DocumentsContract.Document.MIME_TYPE_DIR) {
                     documents.add(document)
@@ -547,7 +571,12 @@ class PhotoViewModel : ViewModel() {
         treeUri: Uri,
         folderName: String,
         selectedMedia: List<MediaItemData>,
-        onProgress: (copiedFiles: Int, totalFiles: Int, currentFileName: String) -> Unit
+        onProgress: (
+            copiedFiles: Int,
+            totalFiles: Int,
+            currentFileName: String,
+            files: List<ExportFileProgress>
+        ) -> Unit
     ): ExportStatus {
         val parentDocumentUri = DocumentsContract.buildDocumentUriUsingTree(
             treeUri,
@@ -570,7 +599,12 @@ class PhotoViewModel : ViewModel() {
         val createdFileUris = mutableListOf<Uri>()
         try {
             filesToCopy.forEachIndexed { index, source ->
-                onProgress(index, filesToCopy.size, source.displayName)
+                onProgress(
+                    index,
+                    filesToCopy.size,
+                    source.displayName,
+                    exportFileProgress(filesToCopy, copyingIndex = index, copiedCount = index)
+                )
                 val destinationUri = DocumentsContract.createDocument(
                     contentResolver,
                     exportFolderUri,
@@ -578,8 +612,19 @@ class PhotoViewModel : ViewModel() {
                     source.displayName
                 ) ?: localizedError(UiMessage.CouldNotCreateFile, source.displayName)
                 createdFileUris.add(destinationUri)
-                copyDocument(contentResolver, source.uri, destinationUri, source.displayName)
-                onProgress(index + 1, filesToCopy.size, source.displayName)
+                copyDocument(
+                    contentResolver = contentResolver,
+                    sourceUri = source.uri,
+                    destinationUri = destinationUri,
+                    displayName = source.displayName,
+                    expectedBytes = source.sizeBytes
+                )
+                onProgress(
+                    index + 1,
+                    filesToCopy.size,
+                    source.displayName,
+                    exportFileProgress(filesToCopy, copyingIndex = null, copiedCount = index + 1)
+                )
             }
         } catch (error: Throwable) {
             cleanupCreatedExportDocuments(
@@ -599,6 +644,7 @@ class PhotoViewModel : ViewModel() {
             uri = uri,
             displayName = displayName,
             lastModified = lastModified,
+            sizeBytes = sizeBytes,
             mimeType = mimeType.ifBlank {
                 if (mediaType == MediaType.Photo) "image/jpeg" else "application/octet-stream"
             }
@@ -608,11 +654,12 @@ class PhotoViewModel : ViewModel() {
         contentResolver: ContentResolver,
         sourceUri: Uri,
         destinationUri: Uri,
-        displayName: String
+        displayName: String,
+        expectedBytes: Long?
     ) {
-        val expectedBytes = queryDocumentSize(contentResolver, sourceUri)
+        val resolvedExpectedBytes = expectedBytes ?: queryDocumentSize(contentResolver, sourceUri)
         val copiedBytes = copyDocumentFileDescriptors(contentResolver, sourceUri, destinationUri, displayName)
-        verifyCopiedDocumentSize(contentResolver, destinationUri, copiedBytes, expectedBytes, displayName)
+        verifyCopiedDocumentSize(contentResolver, destinationUri, copiedBytes, resolvedExpectedBytes, displayName)
     }
 
     private fun verifyCopiedDocumentSize(
@@ -689,6 +736,25 @@ internal fun shouldBeginExport(exportStatus: ExportStatus): Boolean =
 
 internal fun exportProgressCountLabel(status: ExportStatus.Copying): String? =
     if (status.totalFiles > 0) "${status.copiedFiles.coerceIn(0, status.totalFiles)}/${status.totalFiles}" else null
+
+internal fun copiedExportFileNames(status: ExportStatus.Copying): List<String> =
+    status.files
+        .filter { it.state == ExportFileState.Copied }
+        .map { it.fileName }
+
+private fun exportFileProgress(
+    filesToCopy: List<FolderDocumentData>,
+    copyingIndex: Int?,
+    copiedCount: Int
+): List<ExportFileProgress> =
+    filesToCopy.mapIndexed { index, file ->
+        val state = when {
+            index < copiedCount -> ExportFileState.Copied
+            index == copyingIndex -> ExportFileState.Copying
+            else -> ExportFileState.Pending
+        }
+        ExportFileProgress(file.displayName, state)
+    }
 
 internal fun cleanupCreatedExportDocuments(
     createdFileUris: List<Uri>,

@@ -488,6 +488,34 @@ class PhotoViewModelTest {
     }
 
     @Test
+    fun exportProgressTracksSuccessfulFiles() {
+        val status = ExportStatus.Copying(
+            copiedFiles = 2,
+            totalFiles = 3,
+            currentFileName = "third.jpg",
+            files = listOf(
+                ExportFileProgress("first.jpg", ExportFileState.Copied),
+                ExportFileProgress("second.jpg", ExportFileState.Copied),
+                ExportFileProgress("third.jpg", ExportFileState.Copying)
+            )
+        )
+
+        assertEquals(listOf("first.jpg", "second.jpg"), copiedExportFileNames(status))
+    }
+
+    @Test
+    fun mediaItemsKeepKnownDocumentSizeForExportVerification() {
+        val document = FolderDocumentData(
+            uri = FakeUri("folder/photo.jpg"),
+            displayName = "photo.jpg",
+            mimeType = "image/jpeg",
+            sizeBytes = 1234L
+        )
+
+        assertEquals(1234L, document.toMediaItemOrNull()?.sizeBytes)
+    }
+
+    @Test
     fun failedExportCleanupDeletesCreatedDocumentsAndFolderInReverseOrder() {
         val firstFile = FakeUri("export/photo_1.jpg")
         val secondFile = FakeUri("export/photo_2.jpg")
