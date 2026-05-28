@@ -1,6 +1,7 @@
 package com.uzeyir.photoselector
 
 import android.net.FakeUri
+import android.net.Uri
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import org.junit.Assert.assertEquals
@@ -263,6 +264,34 @@ class PhotoViewModelTest {
 
         assertEquals(false, continued)
         assertEquals(Screen.Gallery, viewModel.currentScreen)
+        assertEquals(UiMessage.SelectAtLeastOnePhoto, viewModel.selectionWarningMessage)
+    }
+
+    @Test
+    fun reviewSelectionIgnoresStaleLikedUrisFromPreviousFolder() {
+        val viewModel = PhotoViewModel()
+        viewModel.setPhotos(listOf(testPhoto("current.jpg")))
+        viewModel.likedPhotos.add(FakeUri("previous-folder/old.jpg"))
+        viewModel.navigateTo(Screen.Gallery)
+
+        val continued = viewModel.goToReviewOrWarn()
+
+        assertEquals(false, continued)
+        assertEquals(Screen.Gallery, viewModel.currentScreen)
+        assertEquals(UiMessage.SelectAtLeastOnePhoto, viewModel.selectionWarningMessage)
+    }
+
+    @Test
+    fun confirmationIgnoresStaleLikedUrisFromPreviousFolder() {
+        val viewModel = PhotoViewModel()
+        viewModel.setPhotos(listOf(testPhoto("current.jpg")))
+        viewModel.likedPhotos.add(FakeUri("previous-folder/old.jpg"))
+        viewModel.navigateTo(Screen.Review)
+
+        val continued = viewModel.goToConfirmationOrWarn()
+
+        assertEquals(false, continued)
+        assertEquals(Screen.Review, viewModel.currentScreen)
         assertEquals(UiMessage.SelectAtLeastOnePhoto, viewModel.selectionWarningMessage)
     }
 
@@ -584,6 +613,19 @@ class PhotoViewModelTest {
         viewModel.setMediaItems(listOf(testPhoto("second.jpg")))
 
         assertEquals(0, viewModel.rotationFor(firstPhoto.uri))
+    }
+
+    @Test
+    fun setMediaItemsClearsPreviousFolderSelection() {
+        val viewModel = PhotoViewModel()
+        val firstPhoto = testPhoto("first.jpg")
+        viewModel.setMediaItems(listOf(firstPhoto))
+        viewModel.toggleLike(firstPhoto.uri)
+
+        viewModel.setMediaItems(listOf(testPhoto("second.jpg")))
+
+        assertEquals(emptyList<Uri>(), viewModel.likedPhotos)
+        assertEquals(0, viewModel.selectedPhotoCount)
     }
 
     @Test

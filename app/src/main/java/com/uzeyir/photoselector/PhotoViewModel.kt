@@ -248,7 +248,7 @@ class PhotoViewModel : ViewModel() {
     }
 
     fun goToReviewOrWarn(): Boolean {
-        if (likedPhotos.isEmpty()) {
+        if (likedMediaItems.isEmpty()) {
             selectionWarningMessage = UiMessage.SelectAtLeastOnePhoto
             return false
         }
@@ -258,7 +258,7 @@ class PhotoViewModel : ViewModel() {
     }
 
     fun goToConfirmationOrWarn(): Boolean {
-        if (likedPhotos.isEmpty()) {
+        if (likedMediaItems.isEmpty()) {
             selectionWarningMessage = UiMessage.SelectAtLeastOnePhoto
             return false
         }
@@ -295,6 +295,7 @@ class PhotoViewModel : ViewModel() {
         photos.addAll(sortMediaItemsForGallery(newMediaItems))
         photoUris.clear()
         photoUris.addAll(photos.map { it.uri })
+        likedPhotos.clear()
         rotationByUri.clear()
         if (selectedPhotoIndex !in photos.indices) {
             selectedPhotoIndex = -1

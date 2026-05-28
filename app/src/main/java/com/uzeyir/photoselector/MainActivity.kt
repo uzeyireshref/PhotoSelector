@@ -207,21 +207,39 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
             persistedReadUris = persistedReadUris,
             persistedWriteUris = persistedWriteUris
         )?.let { savedFolder ->
-            viewModel.loadMediaFromFolder(Uri.parse(savedFolder), context.contentResolver)
-            viewModel.navigateTo(Screen.Gallery)
+            runCatching {
+                viewModel.loadMediaFromFolder(Uri.parse(savedFolder), context.contentResolver)
+                viewModel.navigateTo(Screen.Gallery)
+            }.onFailure {
+                lastFolderStore.clear()
+                viewModel.reset()
+                viewModel.warn(UiMessage.FolderLoadFailed)
+            }
         }
     }
 
     fun handleSelectedFolder(uri: Uri?) {
-        uri?.let {
-            context.contentResolver.takePersistableUriPermission(
-                it,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            )
-            lastFolderStore.save(it.toString())
+        uri?.let { selectedUri ->
+            val permissionGranted = runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    selectedUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            }.onFailure {
+                viewModel.warn(UiMessage.FolderLoadFailed)
+            }.isSuccess
+            if (!permissionGranted) return
+
             coroutineScope.launch {
-                viewModel.loadMediaFromFolder(it, context.contentResolver)
-                viewModel.navigateTo(Screen.Gallery)
+                runCatching {
+                    viewModel.loadMediaFromFolder(selectedUri, context.contentResolver)
+                    lastFolderStore.save(selectedUri.toString())
+                    viewModel.navigateTo(Screen.Gallery)
+                }.onFailure {
+                    lastFolderStore.clear()
+                    viewModel.reset()
+                    viewModel.warn(UiMessage.FolderLoadFailed)
+                }
             }
         }
     }

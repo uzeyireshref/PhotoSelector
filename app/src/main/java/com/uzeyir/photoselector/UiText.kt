@@ -9,6 +9,7 @@ enum class UiMessage {
     SelectAtLeastOnePhoto,
     SdCardNotInserted,
     SdCardPickerUnsupported,
+    FolderLoadFailed,
     NoSourceFolder,
     NoLikedPhotos,
     ExportFailedFallback,
@@ -65,6 +66,7 @@ data class LocalizedStrings(
     private val selectAtLeastOnePhoto: String,
     private val sdCardNotInserted: String,
     private val sdCardPickerUnsupported: String,
+    private val folderLoadFailed: String,
     private val noSourceFolder: String,
     private val noLikedPhotos: String,
     private val exportFailedFallback: String,
@@ -88,6 +90,7 @@ data class LocalizedStrings(
         UiMessage.SelectAtLeastOnePhoto -> selectAtLeastOnePhoto
         UiMessage.SdCardNotInserted -> sdCardNotInserted
         UiMessage.SdCardPickerUnsupported -> sdCardPickerUnsupported
+        UiMessage.FolderLoadFailed -> folderLoadFailed
         UiMessage.NoSourceFolder -> noSourceFolder
         UiMessage.NoLikedPhotos -> noLikedPhotos
         UiMessage.ExportFailedFallback -> exportFailedFallback
@@ -158,6 +161,7 @@ internal object UiText {
         selectAtLeastOnePhoto = "En az bir fotoğraf seçin.",
         sdCardNotInserted = "SD kart takılı değil.",
         sdCardPickerUnsupported = "Bu Android sürümünde SD kart doğrudan açılamıyor. Lütfen Klasör Seç ile devam edin.",
+        folderLoadFailed = "Klasör açılamadı. Lütfen izinleri kontrol edip tekrar seçin.",
         noSourceFolder = "Kaynak klasör seçilmedi.",
         noLikedPhotos = "Seçilen fotoğraf yok.",
         exportFailedFallback = "Dışa aktarma başarısız oldu.",
@@ -214,6 +218,7 @@ internal object UiText {
         selectAtLeastOnePhoto = "Select at least one photo.",
         sdCardNotInserted = "SD card is not inserted.",
         sdCardPickerUnsupported = "This Android version cannot open the SD card directly. Please use Select Folder.",
+        folderLoadFailed = "Could not open the folder. Please check permissions and select it again.",
         noSourceFolder = "Source folder was not selected.",
         noLikedPhotos = "No selected photos.",
         exportFailedFallback = "Export failed.",
