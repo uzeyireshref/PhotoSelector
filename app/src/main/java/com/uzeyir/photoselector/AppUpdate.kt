@@ -150,12 +150,23 @@ class GitHubUpdateRepository(
 
 object ApkInstaller {
     fun openInstaller(context: Context, apkFile: File) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
-            val settingsIntent = Intent(
-                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                Uri.parse("package:${context.packageName}")
-            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(settingsIntent)
+        when (
+            installerActionFor(
+                sdkInt = Build.VERSION.SDK_INT,
+                canRequestPackageInstalls = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+                    context.packageManager.canRequestPackageInstalls()
+            )
+        ) {
+            InstallerAction.OpenUnknownSourcesSettings -> {
+                val settingsIntent = Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:${context.packageName}")
+                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(settingsIntent)
+                return
+            }
+
+            InstallerAction.OpenPackageInstaller -> Unit
         }
 
         val apkUri = FileProvider.getUriForFile(
@@ -170,3 +181,15 @@ object ApkInstaller {
         context.startActivity(installIntent)
     }
 }
+
+internal enum class InstallerAction {
+    OpenUnknownSourcesSettings,
+    OpenPackageInstaller
+}
+
+internal fun installerActionFor(sdkInt: Int, canRequestPackageInstalls: Boolean): InstallerAction =
+    if (sdkInt >= Build.VERSION_CODES.O && !canRequestPackageInstalls) {
+        InstallerAction.OpenUnknownSourcesSettings
+    } else {
+        InstallerAction.OpenPackageInstaller
+    }

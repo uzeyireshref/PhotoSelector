@@ -219,8 +219,10 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             )
             lastFolderStore.save(it.toString())
-            viewModel.loadMediaFromFolder(it, context.contentResolver)
-            viewModel.navigateTo(Screen.Gallery)
+            coroutineScope.launch {
+                viewModel.loadMediaFromFolder(it, context.contentResolver)
+                viewModel.navigateTo(Screen.Gallery)
+            }
         }
     }
 

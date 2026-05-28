@@ -116,4 +116,24 @@ class AppUpdateTest {
 
         assertTrue(result.isFailure)
     }
+
+    @Test
+    fun installerOpensUnknownSourcesSettingsBeforeInstallWhenPermissionIsMissing() {
+        assertEquals(
+            InstallerAction.OpenUnknownSourcesSettings,
+            installerActionFor(sdkInt = 26, canRequestPackageInstalls = false)
+        )
+    }
+
+    @Test
+    fun installerOpensPackageInstallerWhenPermissionAlreadyExists() {
+        assertEquals(
+            InstallerAction.OpenPackageInstaller,
+            installerActionFor(sdkInt = 26, canRequestPackageInstalls = true)
+        )
+        assertEquals(
+            InstallerAction.OpenPackageInstaller,
+            installerActionFor(sdkInt = 25, canRequestPackageInstalls = false)
+        )
+    }
 }

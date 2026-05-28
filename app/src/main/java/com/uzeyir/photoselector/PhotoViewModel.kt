@@ -70,6 +70,11 @@ sealed class ExportStatus {
     ) : ExportStatus()
 }
 
+internal data class FolderLoadResult(
+    val documents: List<FolderDocumentData>,
+    val mediaItems: List<MediaItemData>
+)
+
 enum class PhotoViewerSource {
     Gallery,
     Review
@@ -377,6 +382,9 @@ class PhotoViewModel : ViewModel() {
     }
 
     suspend fun exportSelection(contentResolver: ContentResolver): ExportStatus {
+        if (!shouldBeginExport(exportStatus)) {
+            return exportStatus
+        }
         val treeUri = selectedFolderUri
         val selectedMedia = likedMediaItems
         if (treeUri == null) {
@@ -408,15 +416,23 @@ class PhotoViewModel : ViewModel() {
         exportStatus = ExportStatus.Idle
     }
 
-    fun loadPhotosFromFolder(treeUri: Uri, contentResolver: ContentResolver) {
+    suspend fun loadPhotosFromFolder(treeUri: Uri, contentResolver: ContentResolver) {
         loadMediaFromFolder(treeUri, contentResolver)
     }
 
-    fun loadMediaFromFolder(treeUri: Uri, contentResolver: ContentResolver) {
+    suspend fun loadMediaFromFolder(treeUri: Uri, contentResolver: ContentResolver) {
         setMediaItems(emptyList())
         setFolderDocuments(emptyList())
         selectedFolderUri = treeUri
         exportStatus = ExportStatus.Idle
+        val result = withContext(Dispatchers.IO) {
+            queryFolderMedia(treeUri, contentResolver)
+        }
+        setFolderDocuments(result.documents)
+        setMediaItems(result.mediaItems)
+    }
+
+    private fun queryFolderMedia(treeUri: Uri, contentResolver: ContentResolver): FolderLoadResult {
         val docId = DocumentsContract.getTreeDocumentId(treeUri)
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
 
@@ -427,13 +443,13 @@ class PhotoViewModel : ViewModel() {
             DocumentsContract.Document.COLUMN_LAST_MODIFIED
         )
 
+        val documents = mutableListOf<FolderDocumentData>()
+        val mediaItems = mutableListOf<MediaItemData>()
         contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
             val idColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
             val mimeColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
             val nameColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
             val lastModifiedColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_LAST_MODIFIED)
-            val documents = mutableListOf<FolderDocumentData>()
-            val mediaItems = mutableListOf<MediaItemData>()
 
             while (cursor.moveToNext()) {
                 val id = cursor.getString(idColumn)
@@ -458,9 +474,8 @@ class PhotoViewModel : ViewModel() {
                     }
                 }
             }
-            setFolderDocuments(documents)
-            setMediaItems(mediaItems)
         }
+        return FolderLoadResult(documents = documents, mediaItems = mediaItems)
     }
 
     private fun copySelectedFiles(
@@ -487,19 +502,26 @@ class PhotoViewModel : ViewModel() {
             }
         }
 
-        filesToCopy.forEach { source ->
-            val destinationUri = DocumentsContract.createDocument(
-                contentResolver,
-                exportFolderUri,
-                source.mimeType.ifBlank { "application/octet-stream" },
-                source.displayName
-            ) ?: localizedError(UiMessage.CouldNotCreateFile, source.displayName)
-            runCatching {
+        val createdFileUris = mutableListOf<Uri>()
+        try {
+            filesToCopy.forEach { source ->
+                val destinationUri = DocumentsContract.createDocument(
+                    contentResolver,
+                    exportFolderUri,
+                    source.mimeType.ifBlank { "application/octet-stream" },
+                    source.displayName
+                ) ?: localizedError(UiMessage.CouldNotCreateFile, source.displayName)
+                createdFileUris.add(destinationUri)
                 copyDocument(contentResolver, source.uri, destinationUri, source.displayName)
-            }.onFailure { error ->
-                runCatching { DocumentsContract.deleteDocument(contentResolver, destinationUri) }
-                throw error
             }
+        } catch (error: Throwable) {
+            cleanupCreatedExportDocuments(
+                createdFileUris = createdFileUris,
+                exportFolderUri = exportFolderUri
+            ) { uri ->
+                DocumentsContract.deleteDocument(contentResolver, uri)
+            }
+            throw error
         }
 
         return ExportStatus.Success(folderName = folderName, copiedFiles = filesToCopy.size)
@@ -587,6 +609,20 @@ internal fun copyDocumentBytes(input: InputStream, output: OutputStream, display
         throw LocalizedExportException(UiMessage.CopyVerificationFailed, displayName)
     }
     return copiedBytes
+}
+
+internal fun shouldBeginExport(exportStatus: ExportStatus): Boolean =
+    exportStatus != ExportStatus.Copying
+
+internal fun cleanupCreatedExportDocuments(
+    createdFileUris: List<Uri>,
+    exportFolderUri: Uri,
+    deleteDocument: (Uri) -> Boolean
+) {
+    createdFileUris.asReversed().forEach { uri ->
+        runCatching { deleteDocument(uri) }
+    }
+    runCatching { deleteDocument(exportFolderUri) }
 }
 
 internal fun copyDocumentFileDescriptors(

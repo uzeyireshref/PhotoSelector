@@ -392,6 +392,38 @@ class PhotoViewModelTest {
     }
 
     @Test
+    fun exportCannotStartWhileCopying() {
+        assertEquals(false, shouldBeginExport(ExportStatus.Copying))
+        assertEquals(true, shouldBeginExport(ExportStatus.Idle))
+        assertEquals(true, shouldBeginExport(ExportStatus.Success(folderName = "done", copiedFiles = 1)))
+    }
+
+    @Test
+    fun failedExportCleanupDeletesCreatedDocumentsAndFolderInReverseOrder() {
+        val firstFile = FakeUri("export/photo_1.jpg")
+        val secondFile = FakeUri("export/photo_2.jpg")
+        val exportFolder = FakeUri("export")
+        val deleted = mutableListOf<String>()
+
+        cleanupCreatedExportDocuments(
+            createdFileUris = listOf(firstFile, secondFile),
+            exportFolderUri = exportFolder
+        ) { uri ->
+            deleted.add(uri.toString())
+            true
+        }
+
+        assertEquals(
+            listOf(
+                secondFile.toString(),
+                firstFile.toString(),
+                exportFolder.toString()
+            ),
+            deleted
+        )
+    }
+
+    @Test
     fun exportSummaryCountsSelectedVideosWithoutRawMatches() {
         val viewModel = PhotoViewModel()
         val media = listOf(
