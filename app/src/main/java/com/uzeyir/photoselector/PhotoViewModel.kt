@@ -98,7 +98,8 @@ fun FolderDocumentData.toMediaItemOrNull(): MediaItemData? {
 
 fun sortMediaItemsForGallery(mediaItems: List<MediaItemData>): List<MediaItemData> =
     mediaItems.sortedWith(
-        compareByDescending<MediaItemData> { it.lastModified }
+        compareBy<MediaItemData> { if (it.mediaType == MediaType.Video) 0 else 1 }
+            .thenByDescending { it.lastModified }
             .thenByDescending { it.displayName.lowercase(Locale.US) }
     )
 
@@ -398,7 +399,7 @@ class PhotoViewModel : ViewModel() {
         }
 
         exportStatus = ExportStatus.Copying
-        val folderName = "PhotoSelector_Selected_${timestamp()}"
+        val folderName = timestamp()
         exportStatus = withContext(Dispatchers.IO) {
             runCatching {
                 copySelectedFiles(contentResolver, treeUri, folderName, selectedMedia)
@@ -591,12 +592,18 @@ class PhotoViewModel : ViewModel() {
     }
 
     private fun timestamp(): String =
-        SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.US).format(Date())
+        formatExportFolderTimestamp(Date())
 
     private companion object {
         val rawExtensions = setOf("CR3", "CR2", "NEF", "ARW", "DNG", "RAF", "RW2", "ORF")
     }
 }
+
+internal fun formatExportFolderTimestamp(date: Date): String =
+    SimpleDateFormat("HH.mm_dd-MM", Locale.US).format(date)
+
+internal fun exportFolderName(date: Date): String =
+    formatExportFolderTimestamp(date)
 
 private class LocalizedExportException(
     val uiMessage: UiMessage,

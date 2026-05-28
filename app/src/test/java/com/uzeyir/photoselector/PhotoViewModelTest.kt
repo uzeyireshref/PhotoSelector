@@ -4,6 +4,7 @@ import android.net.FakeUri
 import android.net.Uri
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.util.Calendar
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertArrayEquals
@@ -535,6 +536,23 @@ class PhotoViewModelTest {
     }
 
     @Test
+    fun galleryMediaSortsVideosFirstThenEachGroupByNewest() {
+        val media = listOf(
+            testPhoto("newest-photo.jpg", lastModified = 500),
+            testVideo("older-video.mp4", lastModified = 200),
+            testPhoto("older-photo.jpg", lastModified = 100),
+            testVideo("newest-video.mp4", lastModified = 300)
+        )
+
+        val sorted = sortMediaItemsForGallery(media)
+
+        assertEquals(
+            listOf("newest-video.mp4", "older-video.mp4", "newest-photo.jpg", "older-photo.jpg"),
+            sorted.map { it.displayName }
+        )
+    }
+
+    @Test
     fun galleryMediaWithNoLastModifiedFallsBackToReverseDisplayName() {
         val media = listOf(
             testPhoto("IMG_0001.JPG", lastModified = 0),
@@ -544,7 +562,31 @@ class PhotoViewModelTest {
 
         val sorted = sortMediaItemsForGallery(media)
 
-        assertEquals(listOf("IMG_0003.JPG", "IMG_0002.MP4", "IMG_0001.JPG"), sorted.map { it.displayName })
+        assertEquals(listOf("IMG_0002.MP4", "IMG_0003.JPG", "IMG_0001.JPG"), sorted.map { it.displayName })
+    }
+
+    @Test
+    fun exportFolderTimestampUsesHourMinuteDayMonthFormat() {
+        val calendar = Calendar.getInstance().apply {
+            clear()
+            set(2026, Calendar.MAY, 29, 19, 26, 0)
+        }
+
+        val timestamp = formatExportFolderTimestamp(calendar.time)
+
+        assertEquals("19.26_29-05", timestamp)
+    }
+
+    @Test
+    fun exportFolderNameUsesOnlyTimestampWithoutPrefix() {
+        val calendar = Calendar.getInstance().apply {
+            clear()
+            set(2026, Calendar.MAY, 29, 19, 26, 0)
+        }
+
+        val folderName = exportFolderName(calendar.time)
+
+        assertEquals("19.26_29-05", folderName)
     }
 
     @Test

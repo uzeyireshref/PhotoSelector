@@ -118,7 +118,7 @@ internal object UiText {
     internal val turkish = LocalizedStrings(
         languageOptionTurkish = "Türkçe",
         languageOptionEnglish = "English",
-        reviewSelection = "Seçimi İncele",
+        reviewSelection = "Beğendiklerine Bak",
         confirmSelection = "Seçimi Onayla",
         folderTitle = "Fotoğraf Klasörünü Seç",
         selectFolder = "Klasör Seç",
@@ -175,7 +175,7 @@ internal object UiText {
     internal val english = LocalizedStrings(
         languageOptionTurkish = "Türkçe",
         languageOptionEnglish = "English",
-        reviewSelection = "Review Selection",
+        reviewSelection = "View Likes",
         confirmSelection = "Confirm Selection",
         folderTitle = "Select Photo Folder",
         selectFolder = "Select Folder",

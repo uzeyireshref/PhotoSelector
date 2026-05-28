@@ -30,8 +30,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
@@ -182,6 +184,8 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
     var language by remember { mutableStateOf(UiText.defaultLanguage) }
     val strings = UiText.strings(language)
     var sdCardOptions by remember { mutableStateOf<List<StorageVolume>>(emptyList()) }
+    val galleryGridState = rememberLazyGridState()
+    val galleryContentKey = photos.joinToString(separator = "|") { it.uri.toString() }
 
     BackHandler(enabled = currentScreen != Screen.FolderSelection) {
         viewModel.handleBack()
@@ -191,6 +195,12 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
         val message = selectionWarningMessage ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(strings.message(message))
         viewModel.clearSelectionWarning()
+    }
+
+    LaunchedEffect(galleryContentKey) {
+        if (photos.isNotEmpty()) {
+            galleryGridState.scrollToItem(0)
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -369,6 +379,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                     photos = photos,
                     likedPhotos = likedPhotos,
                     strings = strings,
+                    gridState = galleryGridState,
                     onPhotoClick = { uri -> viewModel.openPhoto(uri) },
                     onLikeToggle = { uri -> viewModel.toggleLike(uri) }
                 )
@@ -692,11 +703,13 @@ fun GalleryScreen(
     photos: List<MediaItemData>,
     likedPhotos: List<Uri>,
     strings: LocalizedStrings,
+    gridState: LazyGridState,
     onPhotoClick: (Uri) -> Unit,
     onLikeToggle: (Uri) -> Unit
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
+        state = gridState,
         contentPadding = PaddingValues(8.dp)
     ) {
         items(photos, key = { it.uri }) { photo ->
