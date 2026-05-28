@@ -82,6 +82,23 @@ class PhotoViewModelTest {
     }
 
     @Test
+    fun appleDoubleMetadataFilesAreNotLoadedAsMedia() {
+        val metadataPhoto = FolderDocumentData(
+            uri = FakeUri("folder/._9S8A7592.JPG"),
+            displayName = "._9S8A7592.JPG",
+            mimeType = "image/jpeg"
+        )
+        val metadataVideo = FolderDocumentData(
+            uri = FakeUri("folder/._5R7A4816.MP4"),
+            displayName = "._5R7A4816.MP4",
+            mimeType = "video/mp4"
+        )
+
+        assertEquals(null, metadataPhoto.toMediaItemOrNull())
+        assertEquals(null, metadataVideo.toMediaItemOrNull())
+    }
+
+    @Test
     fun mediaLoadVersionChangesOnlyWhenMediaItemsAreReplaced() {
         val viewModel = PhotoViewModel()
         val initialVersion = viewModel.mediaLoadVersion

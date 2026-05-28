@@ -94,6 +94,8 @@ enum class PhotoViewerSource {
 }
 
 fun FolderDocumentData.toMediaItemOrNull(): MediaItemData? {
+    if (displayName.isHiddenDocumentName()) return null
+
     val type = when {
         isJpegDocument() -> MediaType.Photo
         isVideoDocument() -> MediaType.Video
@@ -132,6 +134,9 @@ private fun String.baseNameKey(): String =
 
 private fun String.extension(): String =
     substringAfterLast('.', "")
+
+private fun String.isHiddenDocumentName(): Boolean =
+    startsWith(".")
 
 private val videoExtensions = setOf(
     "mp4",
