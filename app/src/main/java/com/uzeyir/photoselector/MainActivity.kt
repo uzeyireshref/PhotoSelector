@@ -8,7 +8,6 @@ import android.os.Bundle
 import android.os.storage.StorageManager
 import android.os.storage.StorageVolume
 import android.provider.DocumentsContract
-import android.view.TextureView
 import androidx.annotation.OptIn
 import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
@@ -69,25 +68,28 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem as PlayerMediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.compose.PlayerSurface
+import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import androidx.media3.ui.AspectRatioFrameLayout
-import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.uzeyir.photoselector.ui.theme.PhotoSelectorTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.ceil
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
@@ -115,7 +117,10 @@ enum class Screen {
     Confirmation
 }
 
-private val VideoControlsBottomInset = 96.dp
+enum class GalleryTab {
+    All,
+    Favorites
+}
 
 fun rotatedMediaSize(containerWidthPx: Int, containerHeightPx: Int, rotationDegrees: Int): Pair<Int, Int> {
     if (containerWidthPx <= 0 || containerHeightPx <= 0) return containerWidthPx to containerHeightPx
@@ -160,8 +165,98 @@ fun fullscreenVideoSurfaceSize(
     }
 }
 
-fun shouldRenderInlineVideoPlayer(mediaUri: Uri, fullscreenVideoUri: Uri?): Boolean =
-    fullscreenVideoUri != mediaUri
+fun shouldRenderInlineVideoPlayer(@Suppress("UNUSED_PARAMETER") mediaUri: Uri, @Suppress("UNUSED_PARAMETER") fullscreenVideoUri: Uri?, @Suppress("UNUSED_PARAMETER") activeInlineVideoUri: Uri?): Boolean =
+    false
+
+fun shouldExitFullscreenForPlaybackState(playbackState: Int): Boolean =
+    playbackState == Player.STATE_ENDED
+
+fun shouldShowFullscreenVideoLoading(playbackState: Int): Boolean =
+    playbackState == Player.STATE_IDLE || playbackState == Player.STATE_BUFFERING
+
+fun videoControlsBottomInsetDp(widthDp: Int, controlsVisible: Boolean): Int =
+    when {
+        !controlsVisible -> 24
+        widthDp >= 600 -> 172
+        else -> 112
+    }
+
+enum class VideoSurfaceKind {
+    SurfaceView,
+    TextureView
+}
+
+enum class AspectResizeMode {
+    Fit
+}
+
+fun inlineVideoSurfaceKind(): VideoSurfaceKind =
+    VideoSurfaceKind.SurfaceView
+
+fun fullscreenVideoSurfaceKind(): VideoSurfaceKind =
+    VideoSurfaceKind.TextureView
+
+fun inlineVideoResizeMode(): AspectResizeMode =
+    AspectResizeMode.Fit
+
+fun fullscreenVideoUsesComposeSurface(): Boolean =
+    true
+
+data class VideoPlaybackSession(
+    val activeUri: Uri? = null,
+    val fullscreenUri: Uri? = null
+) {
+    fun playFullscreen(uri: Uri): VideoPlaybackSession =
+        copy(activeUri = uri, fullscreenUri = uri)
+
+    fun exitFullscreen(): VideoPlaybackSession =
+        VideoPlaybackSession()
+
+    fun clearIfDifferentPage(currentUri: Uri): VideoPlaybackSession =
+        if (activeUri != null && activeUri != currentUri) {
+            VideoPlaybackSession()
+        } else {
+            this
+    }
+}
+
+data class VideoPlaybackState(
+    val session: VideoPlaybackSession,
+    val activeMedia: MediaItemData?,
+    val fullscreenMedia: MediaItemData?
+) {
+    val isFullscreen: Boolean = fullscreenMedia != null
+}
+
+fun videoPlaybackStateFor(
+    mediaItems: List<MediaItemData>,
+    session: VideoPlaybackSession
+): VideoPlaybackState {
+    val activeMedia = session.activeUri?.let { uri -> mediaItems.firstOrNull { it.uri == uri } }
+    val fullscreenMedia = session.fullscreenUri?.let { uri -> mediaItems.firstOrNull { it.uri == uri } }
+    return VideoPlaybackState(
+        session = session,
+        activeMedia = activeMedia,
+        fullscreenMedia = fullscreenMedia
+    )
+}
+
+fun videoPosterRequestSizePx(
+    containerWidthPx: Int,
+    containerHeightPx: Int,
+    maxSizePx: Int = 640
+): Pair<Int, Int> {
+    if (containerWidthPx <= 0 || containerHeightPx <= 0 || maxSizePx <= 0) return 1 to 1
+    val scale = min(
+        1.0,
+        min(
+            maxSizePx.toDouble() / containerWidthPx.toDouble(),
+            maxSizePx.toDouble() / containerHeightPx.toDouble()
+        )
+    )
+    return (containerWidthPx * scale).roundToInt().coerceAtLeast(1) to
+        (containerHeightPx * scale).roundToInt().coerceAtLeast(1)
+}
 
 fun galleryColumnCountForWidthDp(widthDp: Int): Int =
     if (widthDp >= 600) 4 else 3
@@ -187,6 +282,8 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
     val viewerSource = viewModel.viewerSource
     val selectedPhotoIndex = viewModel.selectedPhotoIndex
     val selectionWarningMessage = viewModel.selectionWarningMessage
+    val galleryTab = viewModel.galleryTab
+    val pendingReturnToFolderConfirmation = viewModel.pendingReturnToFolderConfirmation
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val updateRepository = remember { GitHubUpdateRepository() }
@@ -206,7 +303,11 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
     val galleryContentKey = viewModel.mediaLoadVersion
 
     BackHandler(enabled = currentScreen != Screen.FolderSelection) {
-        viewModel.handleBack()
+        when (currentScreen) {
+            Screen.PhotoDetail, Screen.Confirmation, Screen.Review -> viewModel.handleBack()
+            Screen.Gallery -> viewModel.requestReturnToFolderSelection()
+            Screen.FolderSelection -> Unit
+        }
     }
 
     LaunchedEffect(selectionWarningMessage) {
@@ -339,28 +440,43 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
         )
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        bottomBar = {
-            if (currentScreen == Screen.Gallery || currentScreen == Screen.Review) {
-                BottomPriceBar(
-                    photoCount = viewModel.selectedPhotoCount,
-                    videoCount = viewModel.selectedVideoCount,
-                    photoOriginalPrice = viewModel.photoBasePrice,
-                    photoPayablePrice = viewModel.photoDisplayPrice,
-                    videoOriginalPrice = viewModel.videoBasePrice,
-                    videoPayablePrice = viewModel.videoDisplayPrice,
-                    totalPayablePrice = viewModel.totalDisplayPrice,
-                    onReviewClick = {
-                        if (currentScreen == Screen.Gallery) viewModel.goToReviewOrWarn()
-                        else if (currentScreen == Screen.Review) viewModel.goToConfirmationOrWarn()
-                    },
-                    buttonText = if (currentScreen == Screen.Gallery) strings.reviewSelection else strings.confirmSelection,
-                    strings = strings
-                )
+    if (pendingReturnToFolderConfirmation) {
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelReturnToFolderSelection() },
+            title = { Text(strings.returnHomeWarningTitle) },
+            text = { Text(strings.returnHomeWarningMessage) },
+            confirmButton = {
+                Button(onClick = { viewModel.confirmReturnToFolderSelection() }) {
+                    Text(strings.returnHome)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.cancelReturnToFolderSelection() }) {
+                    Text(strings.stayHere)
+                }
             }
-        }
+        )
+    }
+
+    Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            bottomBar = {
+                if (currentScreen == Screen.Gallery) {
+                    BottomPriceBar(
+                        photoCount = viewModel.selectedPhotoCount,
+                        videoCount = viewModel.selectedVideoCount,
+                        photoOriginalPrice = viewModel.photoBasePrice,
+                        photoPayablePrice = viewModel.photoDisplayPrice,
+                        videoOriginalPrice = viewModel.videoBasePrice,
+                        videoPayablePrice = viewModel.videoDisplayPrice,
+                        totalPayablePrice = viewModel.totalDisplayPrice,
+                        onReviewClick = { viewModel.goToConfirmationOrWarn() },
+                        buttonText = strings.confirmSelection,
+                        strings = strings
+                    )
+                }
+            }
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
             when (currentScreen) {
@@ -398,10 +514,14 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                 )
                 Screen.Gallery -> GalleryScreen(
                     photos = photos,
+                    likedMediaItems = likedMediaItems,
                     likedPhotoUris = likedPhotoUriSet,
+                    selectedTab = galleryTab,
+                    onTabSelected = { tab -> viewModel.selectGalleryTab(tab) },
                     strings = strings,
                     gridState = galleryGridState,
                     onPhotoClick = { uri -> viewModel.openPhoto(uri) },
+                    onFavoritePhotoClick = { uri -> viewModel.openLikedPhoto(uri) },
                     onLikeToggle = { uri -> viewModel.toggleLike(uri) }
                 )
                 Screen.PhotoDetail -> PhotoDetailScreen(
@@ -416,16 +536,12 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                     videoPayablePrice = viewModel.videoDisplayPrice,
                     totalPayablePrice = viewModel.totalDisplayPrice,
                     strings = strings,
-                    onBack = {
-                        viewModel.navigateTo(
-                            if (viewerSource == PhotoViewerSource.Review) Screen.Review else Screen.Gallery
-                        )
-                    },
+                    onBack = { viewModel.navigateTo(Screen.Gallery) },
                     onPhotoSelected = { index -> viewModel.openPhotoAt(index) },
                     rotationFor = { uri -> viewModel.rotationFor(uri) },
                     onRotate = { viewModel.rotateSelectedMedia() },
                     onLikeToggle = { uri -> viewModel.toggleLike(uri) },
-                    onReviewClick = { viewModel.goToReviewOrWarn() }
+                    onReviewClick = { viewModel.showFavoritesFromViewerOrWarn() }
                 )
                 Screen.Review -> ReviewScreen(
                     likedPhotos = likedMediaItems,
@@ -437,14 +553,20 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                 Screen.Confirmation -> ConfirmationScreen(
                     summary = exportSummary,
                     exportStatus = exportStatus,
+                    photoOriginalPrice = viewModel.photoBasePrice,
+                    photoPayablePrice = viewModel.photoDisplayPrice,
+                    videoOriginalPrice = viewModel.videoBasePrice,
+                    videoPayablePrice = viewModel.videoDisplayPrice,
+                    totalDiscount = viewModel.discount,
+                    totalPayablePrice = viewModel.totalDisplayPrice,
                     strings = strings,
-                    onBack = { viewModel.navigateTo(Screen.Review) },
+                    onBack = { viewModel.navigateTo(Screen.Gallery) },
                     onConfirmExport = {
                         coroutineScope.launch {
                             viewModel.exportSelection(context.contentResolver)
                         }
                     },
-                    onFinished = { viewModel.reset() }
+                    onFinished = { viewModel.confirmReturnToFolderSelection() }
                 )
             }
         }
@@ -732,34 +854,168 @@ fun UpdateCheckButton(
 fun GalleryScreen(
     photos: List<MediaItemData>,
     likedPhotoUris: Set<Uri>,
+    likedMediaItems: List<MediaItemData> = photos.filter { likedPhotoUris.contains(it.uri) },
+    selectedTab: GalleryTab? = null,
+    onTabSelected: (GalleryTab) -> Unit = {},
     strings: LocalizedStrings,
     gridState: LazyGridState,
     onPhotoClick: (Uri) -> Unit,
+    onFavoritePhotoClick: (Uri) -> Unit = onPhotoClick,
     onLikeToggle: (Uri) -> Unit
 ) {
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val density = LocalDensity.current
-        val widthDp = maxWidth.value.roundToInt()
-        val columnCount = galleryColumnCountForWidthDp(widthDp)
-        val thumbnailSizePx = thumbnailRequestSizePx(widthDp, density.density)
-        val gridPadding = if (columnCount >= 4) 10.dp else 8.dp
+    var internalSelectedTab by remember { mutableStateOf(GalleryTab.All) }
+    val activeTab = selectedTab ?: internalSelectedTab
+    val selectTab: (GalleryTab) -> Unit = { tab ->
+        internalSelectedTab = tab
+        onTabSelected(tab)
+    }
+    val visibleMedia = if (activeTab == GalleryTab.All) photos else likedMediaItems
 
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(columnCount),
-            state = gridState,
-            contentPadding = PaddingValues(gridPadding)
-        ) {
-            items(photos, key = { it.uri }) { photo ->
-                PhotoItem(
-                    media = photo,
-                    isLiked = likedPhotoUris.contains(photo.uri),
-                    strings = strings,
-                    thumbnailSizePx = thumbnailSizePx,
-                    onClick = { onPhotoClick(photo.uri) },
-                    onLikeToggle = { onLikeToggle(photo.uri) }
-                )
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        GalleryHeader(
+            selectedTab = activeTab,
+            totalCount = photos.size,
+            favoriteCount = likedMediaItems.size,
+            strings = strings,
+            onTabSelected = selectTab
+        )
+
+        if (activeTab == GalleryTab.Favorites && visibleMedia.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = RoundedCornerShape(8.dp),
+                    tonalElevation = 1.dp,
+                    modifier = Modifier.padding(24.dp)
+                ) {
+                    Text(
+                        text = strings.noFavoritesYet,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.74f),
+                        modifier = Modifier.padding(horizontal = 28.dp, vertical = 22.dp)
+                    )
+                }
+            }
+        } else {
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .weight(1f)
+            ) {
+                val density = LocalDensity.current
+                val widthDp = maxWidth.value.roundToInt()
+                val columnCount = galleryColumnCountForWidthDp(widthDp)
+                val thumbnailSizePx = thumbnailRequestSizePx(widthDp, density.density)
+                val gridPadding = if (columnCount >= 4) 14.dp else 10.dp
+
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(columnCount),
+                    state = gridState,
+                    contentPadding = PaddingValues(gridPadding),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(visibleMedia, key = { it.uri }) { photo ->
+                        PhotoItem(
+                            media = photo,
+                            isLiked = likedPhotoUris.contains(photo.uri),
+                            strings = strings,
+                            thumbnailSizePx = thumbnailSizePx,
+                            onClick = {
+                                if (activeTab == GalleryTab.Favorites) {
+                                    onFavoritePhotoClick(photo.uri)
+                                } else {
+                                    onPhotoClick(photo.uri)
+                                }
+                            },
+                            onLikeToggle = { onLikeToggle(photo.uri) }
+                        )
+                    }
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun GalleryHeader(
+    selectedTab: GalleryTab,
+    totalCount: Int,
+    favoriteCount: Int,
+    strings: LocalizedStrings,
+    onTabSelected: (GalleryTab) -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+        shadowElevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = strings.galleryTitle,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "${strings.photo}: $totalCount   ${strings.selected}: $favoriteCount",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f)
+                )
+            }
+            GalleryTabButton(
+                text = strings.allPhotos,
+                selected = selectedTab == GalleryTab.All,
+                onClick = { onTabSelected(GalleryTab.All) }
+            )
+            GalleryTabButton(
+                text = "${strings.favorites} ($favoriteCount)",
+                selected = selectedTab == GalleryTab.Favorites,
+                onClick = { onTabSelected(GalleryTab.Favorites) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun GalleryTabButton(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val container = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+    val content = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+    Button(
+        onClick = onClick,
+        shape = RoundedCornerShape(8.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = container,
+            contentColor = content
+        ),
+        contentPadding = PaddingValues(horizontal = 30.dp, vertical = 18.dp),
+        modifier = Modifier.heightIn(min = 62.dp)
+    ) {
+        Text(
+            text = text,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 
@@ -782,8 +1038,11 @@ fun PhotoItem(
     }
 
     Card(
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = Modifier
-            .padding(4.dp)
+            .padding(3.dp)
             .aspectRatio(1f)
             .clickable(onClick = onClick)
     ) {
@@ -818,12 +1077,15 @@ fun PhotoItem(
             }
             IconButton(
                 onClick = onLikeToggle,
-                modifier = Modifier.align(Alignment.TopEnd)
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(6.dp)
+                    .background(Color.Black.copy(alpha = 0.34f), CircleShape)
             ) {
                 Icon(
                     imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     contentDescription = strings.like,
-                    tint = if (isLiked) Color.Red else Color.White
+                    tint = if (isLiked) Color(0xFFE53935) else Color.White
                 )
             }
         }
@@ -865,12 +1127,14 @@ fun PhotoDetailScreen(
     )
     val coroutineScope = rememberCoroutineScope()
     var controlsVisible by remember { mutableStateOf(true) }
-    var fullscreenVideo by remember { mutableStateOf<MediaItemData?>(null) }
+    val videoController = rememberVideoPlaybackController(photos)
     val currentPhoto = photos[pagerState.currentPage]
     val isLiked = likedPhotoUris.contains(currentPhoto.uri)
+    val fullscreenVideo = videoController.fullscreenMedia
+    val sharedVideoPlayer = videoController.player
 
-    BackHandler(enabled = fullscreenVideo != null) {
-        fullscreenVideo = null
+    BackHandler(enabled = videoController.isFullscreen) {
+        videoController.exitFullscreen()
     }
 
     fun showControls() {
@@ -894,11 +1158,11 @@ fun PhotoDetailScreen(
     }
 
     LaunchedEffect(currentPhoto.uri) {
-        fullscreenVideo = null
+        videoController.clearIfDifferentPage(currentPhoto.uri)
         controlsVisible = true
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
@@ -910,15 +1174,15 @@ fun PhotoDetailScreen(
             val media = photos[page]
             val rotationDegrees = if (media.mediaType == MediaType.Photo) rotationFor(media.uri) else 0
             if (media.mediaType == MediaType.Video) {
-                if (shouldRenderInlineVideoPlayer(media.uri, fullscreenVideo?.uri)) {
-                    VideoPlayer(
-                        media = media,
-                        isActive = page == pagerState.currentPage && fullscreenVideo == null,
-                        rotationDegrees = rotationDegrees,
-                        controlsBottomInset = VideoControlsBottomInset,
-                        onSingleTap = { toggleControls() }
-                    )
-                }
+                VideoPoster(
+                    media = media,
+                    strings = strings,
+                    onPlay = {
+                        videoController.playFullscreen(media.uri)
+                        controlsVisible = false
+                    },
+                    onSingleTap = { toggleControls() }
+                )
             } else {
                 ZoomablePhoto(
                     photo = media,
@@ -973,7 +1237,10 @@ fun PhotoDetailScreen(
                 strings = strings,
                 onRotate = if (currentPhoto.mediaType == MediaType.Photo) onRotate else null,
                 onVideoFullscreen = if (currentPhoto.mediaType == MediaType.Video) {
-                    { fullscreenVideo = currentPhoto }
+                    {
+                        videoController.playFullscreen(currentPhoto.uri)
+                        controlsVisible = false
+                    }
                 } else {
                     null
                 },
@@ -1014,11 +1281,114 @@ fun PhotoDetailScreen(
         }
 
         fullscreenVideo?.let { media ->
-            VideoFullscreenPlayer(
-                media = media,
-                strings = strings,
-                onExit = { fullscreenVideo = null },
-                modifier = Modifier.matchParentSize()
+            sharedVideoPlayer?.let { player ->
+                VideoFullscreenPlayer(
+                    player = player,
+                    media = media,
+                    strings = strings,
+                    onExit = { videoController.exitFullscreen() },
+                    modifier = Modifier.matchParentSize()
+                )
+            }
+        }
+    }
+}
+
+private class VideoPlaybackController(
+    val state: VideoPlaybackState,
+    val player: ExoPlayer?,
+    val playFullscreen: (Uri) -> Unit,
+    val exitFullscreen: () -> Unit,
+    val clearIfDifferentPage: (Uri) -> Unit
+) {
+    val activeMedia: MediaItemData? = state.activeMedia
+    val fullscreenMedia: MediaItemData? = state.fullscreenMedia
+    val isFullscreen: Boolean = state.isFullscreen
+}
+
+@Composable
+private fun rememberVideoPlaybackController(mediaItems: List<MediaItemData>): VideoPlaybackController {
+    var session by remember { mutableStateOf(VideoPlaybackSession()) }
+    val state = remember(mediaItems, session) {
+        videoPlaybackStateFor(mediaItems, session)
+    }
+    val player = rememberSharedVideoPlayer(state.activeMedia)
+    return VideoPlaybackController(
+        state = state,
+        player = player,
+        playFullscreen = { uri -> session = session.playFullscreen(uri) },
+        exitFullscreen = { session = session.exitFullscreen() },
+        clearIfDifferentPage = { uri -> session = session.clearIfDifferentPage(uri) }
+    )
+}
+
+@Composable
+fun rememberSharedVideoPlayer(media: MediaItemData?): ExoPlayer? {
+    val context = LocalContext.current
+    return if (media == null) {
+        null
+    } else {
+        val player = remember(media.uri) {
+            ExoPlayer.Builder(context).build().apply {
+                setMediaItem(PlayerMediaItem.fromUri(media.uri))
+                prepare()
+            }
+        }
+        DisposableEffect(player) {
+            onDispose {
+                player.release()
+            }
+        }
+        player
+    }
+}
+
+@Composable
+fun VideoPoster(
+    media: MediaItemData,
+    strings: LocalizedStrings,
+    onPlay: () -> Unit,
+    onSingleTap: () -> Unit
+) {
+    val context = LocalContext.current
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .pointerInput(media.uri) {
+                detectTapGestures(onTap = { onSingleTap() })
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        val thumbnailRequest = remember(media.uri, constraints.maxWidth, constraints.maxHeight) {
+            val (requestWidth, requestHeight) = videoPosterRequestSizePx(
+                containerWidthPx = constraints.maxWidth,
+                containerHeightPx = constraints.maxHeight
+            )
+            ImageRequest.Builder(context)
+                .data(media.uri)
+                .size(requestWidth, requestHeight)
+                .crossfade(false)
+                .build()
+        }
+        AsyncImage(
+            model = thumbnailRequest,
+            contentDescription = media.displayName,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit
+        )
+        FilledIconButton(
+            onClick = onPlay,
+            modifier = Modifier.size(84.dp),
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = Color.Black.copy(alpha = 0.48f),
+                contentColor = Color.White
+            )
+        ) {
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = strings.video,
+                modifier = Modifier.size(42.dp)
             )
         }
     }
@@ -1034,6 +1404,7 @@ fun ZoomablePhoto(
     var scale by remember(photo.uri) { mutableFloatStateOf(1f) }
     var offsetX by remember(photo.uri) { mutableFloatStateOf(0f) }
     var offsetY by remember(photo.uri) { mutableFloatStateOf(0f) }
+    val context = LocalContext.current
 
     fun resetZoom() {
         scale = 1f
@@ -1101,8 +1472,15 @@ fun ZoomablePhoto(
         )
         val mediaWidth = if (mediaWidthPx == constraints.maxWidth) maxWidth else maxHeight
         val mediaHeight = if (mediaHeightPx == constraints.maxHeight) maxHeight else maxWidth
+        val imageRequest = remember(photo.uri, mediaWidthPx, mediaHeightPx) {
+            ImageRequest.Builder(context)
+                .data(photo.uri)
+                .size(mediaWidthPx.coerceAtLeast(1), mediaHeightPx.coerceAtLeast(1))
+                .crossfade(false)
+                .build()
+        }
         AsyncImage(
-            model = photo.uri,
+            model = imageRequest,
             contentDescription = photo.displayName,
             modifier = Modifier
                 .requiredSize(width = mediaWidth, height = mediaHeight)
@@ -1120,142 +1498,33 @@ fun ZoomablePhoto(
 
 @Composable
 @OptIn(UnstableApi::class)
-fun VideoPlayer(
-    media: MediaItemData,
-    isActive: Boolean,
-    rotationDegrees: Int,
-    controlsBottomInset: Dp,
-    onSingleTap: () -> Unit
-) {
-    val context = LocalContext.current
-    var currentPositionMs by remember(media.uri) { mutableLongStateOf(0L) }
-    var durationMs by remember(media.uri) { mutableLongStateOf(0L) }
-    var isVideoPlaying by remember(media.uri) { mutableStateOf(false) }
-    val player = remember(media.uri) {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(PlayerMediaItem.fromUri(media.uri))
-            prepare()
-        }
-    }
-
-    fun updatePlaybackState() {
-        currentPositionMs = player.currentPosition.coerceAtLeast(0L)
-        durationMs = player.duration.takeIf { it > 0L } ?: 0L
-        isVideoPlaying = player.isPlaying
-    }
-
-    LaunchedEffect(isActive) {
-        player.playWhenReady = isActive
-        if (isActive) {
-            player.play()
-        } else {
-            player.pause()
-        }
-        updatePlaybackState()
-        while (isActive) {
-            delay(500)
-            updatePlaybackState()
-        }
-    }
-
-    DisposableEffect(player) {
-        onDispose {
-            player.release()
-        }
-    }
-
-    BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxSize()
-            .semantics { contentDescription = media.displayName }
-            .pointerInput(media.uri) {
-                detectTapGestures(onTap = { onSingleTap() })
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        val (mediaWidthPx, mediaHeightPx) = rotatedMediaSize(
-            constraints.maxWidth,
-            constraints.maxHeight,
-            rotationDegrees
-        )
-        val mediaWidth = if (mediaWidthPx == constraints.maxWidth) maxWidth else maxHeight
-        val mediaHeight = if (mediaHeightPx == constraints.maxHeight) maxHeight else maxWidth
-        AndroidView(
-            factory = { viewContext ->
-                PlayerView(viewContext).apply {
-                    this.player = player
-                    useController = false
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                }
-            },
-            update = { playerView ->
-                playerView.player = player
-                playerView.useController = false
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            },
-            modifier = Modifier
-                .requiredSize(width = mediaWidth, height = mediaHeight)
-                .graphicsLayer(
-                    rotationZ = rotationDegrees.toFloat()
-                )
-        )
-        VideoPlaybackControls(
-            isPlaying = isVideoPlaying,
-            currentPositionMs = currentPositionMs,
-            durationMs = durationMs,
-            onPlayPause = {
-                if (player.isPlaying) {
-                    player.pause()
-                } else {
-                    player.play()
-                }
-                updatePlaybackState()
-            },
-            onSeekTo = { positionMs ->
-                player.seekTo(positionMs)
-                updatePlaybackState()
-            },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(start = 18.dp, end = 18.dp, bottom = controlsBottomInset + 12.dp)
-        )
-    }
-}
-
-@Composable
-@OptIn(UnstableApi::class)
 fun VideoFullscreenPlayer(
+    player: ExoPlayer,
     media: MediaItemData,
     strings: LocalizedStrings,
     onExit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val density = LocalDensity.current
     BackHandler(onBack = onExit)
 
     var currentPositionMs by remember(media.uri) { mutableLongStateOf(0L) }
     var durationMs by remember(media.uri) { mutableLongStateOf(0L) }
     var isVideoPlaying by remember(media.uri) { mutableStateOf(false) }
+    var playbackState by remember(media.uri) { mutableIntStateOf(player.playbackState) }
     var videoWidth by remember(media.uri) { mutableIntStateOf(0) }
     var videoHeight by remember(media.uri) { mutableIntStateOf(0) }
-    var textureView by remember(media.uri) { mutableStateOf<TextureView?>(null) }
-    val player = remember(media.uri) {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(PlayerMediaItem.fromUri(media.uri))
-            playWhenReady = true
-            prepare()
-            play()
-        }
-    }
 
     fun updatePlaybackState() {
         currentPositionMs = player.currentPosition.coerceAtLeast(0L)
         durationMs = player.duration.takeIf { it > 0L } ?: 0L
         isVideoPlaying = player.isPlaying
+        playbackState = player.playbackState
     }
 
     LaunchedEffect(player) {
+        player.playWhenReady = true
+        player.play()
         while (true) {
             updatePlaybackState()
             delay(500)
@@ -1268,23 +1537,21 @@ fun VideoFullscreenPlayer(
                 videoWidth = videoSize.width
                 videoHeight = videoSize.height
             }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                updatePlaybackState()
+                if (shouldExitFullscreenForPlaybackState(playbackState)) {
+                    player.pause()
+                    player.seekTo(0L)
+                    onExit()
+                }
+            }
         }
         player.addListener(listener)
         onDispose {
+            player.pause()
+            player.seekTo(0L)
             player.removeListener(listener)
-            player.release()
-        }
-    }
-
-    DisposableEffect(player, textureView) {
-        val currentTextureView = textureView
-        if (currentTextureView != null) {
-            player.setVideoTextureView(currentTextureView)
-        }
-        onDispose {
-            if (currentTextureView != null) {
-                player.clearVideoTextureView(currentTextureView)
-            }
         }
     }
 
@@ -1303,23 +1570,29 @@ fun VideoFullscreenPlayer(
         val mediaWidth = with(density) { mediaWidthPx.toDp() }
         val mediaHeight = with(density) { mediaHeightPx.toDp() }
 
-        AndroidView(
-            factory = { viewContext ->
-                TextureView(viewContext).also { view ->
-                    textureView = view
-                    player.setVideoTextureView(view)
-                }
-            },
-            update = { view ->
-                if (textureView !== view) {
-                    textureView = view
-                }
-                player.setVideoTextureView(view)
-            },
+        PlayerSurface(
+            player = player,
+            surfaceType = SURFACE_TYPE_TEXTURE_VIEW,
             modifier = Modifier
                 .requiredSize(width = mediaWidth, height = mediaHeight)
                 .graphicsLayer(rotationZ = rotationDegrees.toFloat())
         )
+
+        if (shouldShowFullscreenVideoLoading(playbackState)) {
+            Surface(
+                color = Color.Black.copy(alpha = 0.46f),
+                shape = CircleShape,
+                modifier = Modifier.size(72.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        strokeWidth = 3.dp,
+                        modifier = Modifier.size(34.dp)
+                    )
+                }
+            }
+        }
 
         FilledIconButton(
             onClick = onExit,
@@ -1542,21 +1815,15 @@ private fun PhoneFullscreenBottomBarContent(
     ) {
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(strings.selectedCount(photoCount + videoCount), color = Color.White)
-            SelectionPriceSummary(
-                photoCount = photoCount,
-                videoCount = videoCount,
-                photoOriginalPrice = photoOriginalPrice,
-                photoPayablePrice = photoPayablePrice,
-                videoOriginalPrice = videoOriginalPrice,
-                videoPayablePrice = videoPayablePrice,
-                totalPayablePrice = totalPayablePrice,
-                strings = strings,
-                textColor = Color.White,
-                discountedColor = Color(0xFF81C784)
-            )
+            val discount = (photoOriginalPrice + videoOriginalPrice) - (photoPayablePrice + videoPayablePrice)
+            Text("${strings.selected}: ${photoCount + videoCount}", color = Color.White, style = MaterialTheme.typography.titleMedium)
+            Text("${strings.photoShort}: $photoCount   ${strings.videoShort}: $videoCount", color = Color.White.copy(alpha = 0.72f))
+            if (discount > 0) {
+                Text("${strings.discount}: ${strings.price(discount)}", color = Color(0xFF81C784), style = MaterialTheme.typography.bodyMedium)
+            }
+            Text("${strings.total}: ${strings.price(totalPayablePrice)}", color = Color.White, style = MaterialTheme.typography.titleLarge)
         }
         Spacer(modifier = Modifier.width(14.dp))
         Row(
@@ -1596,7 +1863,6 @@ private fun TabletFullscreenBottomBarContent(
     onLikeToggle: () -> Unit,
     onReviewClick: () -> Unit
 ) {
-    val selectedCount = photoCount + videoCount
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1605,21 +1871,16 @@ private fun TabletFullscreenBottomBarContent(
         horizontalArrangement = Arrangement.spacedBy(18.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        DarkSelectionMetricCard(
-            label = strings.selected,
-            value = selectedCount.toString(),
-            supportingText = "${strings.photo}: $photoCount   ${strings.video}: $videoCount",
-            modifier = Modifier.weight(0.9f)
-        )
-        DarkTabletPriceBreakdownCard(
+        DarkCompactPriceSummary(
             photoCount = photoCount,
             videoCount = videoCount,
             photoOriginalPrice = photoOriginalPrice,
             photoPayablePrice = photoPayablePrice,
             videoOriginalPrice = videoOriginalPrice,
             videoPayablePrice = videoPayablePrice,
+            totalPayablePrice = totalPayablePrice,
             strings = strings,
-            modifier = Modifier.weight(1.2f)
+            modifier = Modifier.weight(1.5f)
         )
         Row(
             modifier = Modifier.weight(1f),
@@ -1657,6 +1918,46 @@ private fun TabletFullscreenBottomBarContent(
             ) {
                 Text(strings.review, style = MaterialTheme.typography.titleMedium)
             }
+        }
+    }
+}
+
+@Composable
+private fun DarkCompactPriceSummary(
+    photoCount: Int,
+    videoCount: Int,
+    photoOriginalPrice: Int,
+    photoPayablePrice: Int,
+    videoOriginalPrice: Int,
+    videoPayablePrice: Int,
+    totalPayablePrice: Int,
+    strings: LocalizedStrings,
+    modifier: Modifier = Modifier
+) {
+    val discount = (photoOriginalPrice + videoOriginalPrice) - (photoPayablePrice + videoPayablePrice)
+    Surface(
+        color = Color.White.copy(alpha = 0.10f),
+        shape = RoundedCornerShape(8.dp),
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("${strings.selected}: ${photoCount + videoCount}", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                Text("${strings.photoShort}: $photoCount   ${strings.videoShort}: $videoCount", color = Color.White.copy(alpha = 0.74f))
+                if (discount > 0) {
+                    Text("${strings.discount}: ${strings.price(discount)}", color = Color(0xFF81C784))
+                }
+            }
+            Text(
+                text = "${strings.total}: ${strings.price(totalPayablePrice)}",
+                style = MaterialTheme.typography.headlineSmall,
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }
@@ -1979,6 +2280,12 @@ fun ReviewScreen(
 fun ConfirmationScreen(
     summary: ExportSummary,
     exportStatus: ExportStatus,
+    photoOriginalPrice: Int = summary.selectedJpgCount * 300,
+    photoPayablePrice: Int = confirmationDefaultPayablePrice(summary.selectedJpgCount, unitPrice = 300),
+    videoOriginalPrice: Int = summary.selectedVideoCount * 1000,
+    videoPayablePrice: Int = confirmationDefaultPayablePrice(summary.selectedVideoCount, unitPrice = 1000),
+    totalDiscount: Int = (photoOriginalPrice + videoOriginalPrice) - (photoPayablePrice + videoPayablePrice),
+    totalPayablePrice: Int = photoPayablePrice + videoPayablePrice,
     strings: LocalizedStrings,
     onBack: () -> Unit,
     onConfirmExport: () -> Unit,
@@ -1987,16 +2294,20 @@ fun ConfirmationScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(strings.finalConfirmation, style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(20.dp))
-        Text(strings.selectedJpgCount(summary.selectedJpgCount), style = MaterialTheme.typography.titleMedium)
-        Text(strings.matchingRawCount(summary.matchedRawCount), style = MaterialTheme.typography.titleMedium)
-        Text(strings.selectedVideoCount(summary.selectedVideoCount), style = MaterialTheme.typography.titleMedium)
-        Text(strings.totalFileCount(summary.totalFileCount), style = MaterialTheme.typography.titleLarge)
+        ConfirmationSummaryCard(
+            summary = summary,
+            totalDiscount = totalDiscount,
+            totalPayablePrice = totalPayablePrice,
+            strings = strings,
+            modifier = Modifier.widthIn(min = 320.dp, max = 560.dp)
+        )
         Spacer(modifier = Modifier.height(28.dp))
 
         when (exportStatus) {
@@ -2015,40 +2326,11 @@ fun ConfirmationScreen(
             }
 
             is ExportStatus.Copying -> {
-                val progressFraction = exportStatus.progressFraction
-                if (progressFraction != null) {
-                    LinearProgressIndicator(
-                        progress = { progressFraction },
-                        modifier = Modifier.widthIn(min = 320.dp, max = 520.dp)
-                    )
-                } else {
-                    LinearProgressIndicator(modifier = Modifier.widthIn(min = 320.dp, max = 520.dp))
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(strings.copyingSelectedFiles)
-                exportProgressCountLabel(exportStatus)?.let { progressLabel ->
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(progressLabel, style = MaterialTheme.typography.bodyMedium)
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = strings.copiedFileCount(copiedExportFileNames(exportStatus).size),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF2E7D32)
+                CopyProgressPanel(
+                    exportStatus = exportStatus,
+                    strings = strings,
+                    modifier = Modifier.widthIn(min = 320.dp, max = 620.dp)
                 )
-                exportStatus.currentFileName?.let { fileName ->
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = fileName,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (exportStatus.files.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    ExportFileProgressList(exportStatus = exportStatus)
-                }
             }
 
             is ExportStatus.Success -> {
@@ -2058,7 +2340,7 @@ fun ConfirmationScreen(
                 Text(strings.copiedFileCount(exportStatus.copiedFiles))
                 Spacer(modifier = Modifier.height(20.dp))
                 Button(onClick = onFinished) {
-                    Text(strings.finish)
+                    Text(strings.returnHome)
                 }
             }
 
@@ -2081,48 +2363,180 @@ fun ConfirmationScreen(
 }
 
 @Composable
+private fun ConfirmationSummaryCard(
+    summary: ExportSummary,
+    totalDiscount: Int,
+    totalPayablePrice: Int,
+    strings: LocalizedStrings,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+        shadowElevation = 1.dp,
+        shape = RoundedCornerShape(8.dp),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            SummaryRow("${strings.photoShort}: ${summary.selectedJpgCount}", "${strings.matchingRaw}: ${summary.matchedRawCount}")
+            SummaryRow("${strings.videoShort}: ${summary.selectedVideoCount}", strings.filesToCopyCount(summary.totalFileCount))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+            if (totalDiscount > 0) {
+                Text(
+                    text = "${strings.discount}: ${strings.price(totalDiscount)}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color(0xFF2E7D32),
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Text(
+                text = "${strings.total}: ${strings.price(totalPayablePrice)}",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
+private fun SummaryRow(
+    label: String,
+    value: String,
+    valueStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.titleMedium,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
+        )
+        Text(
+            text = value,
+            style = valueStyle,
+            color = valueColor,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun CopyProgressPanel(
+    exportStatus: ExportStatus.Copying,
+    strings: LocalizedStrings,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+        shape = RoundedCornerShape(8.dp),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(strings.copyProgress, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = exportStatus.progressFraction?.let { formatPercent(it) }
+                        ?: exportProgressCountLabel(exportStatus).orEmpty(),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            exportStatus.progressFraction?.let { progress ->
+                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+            } ?: LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            if (exportStatus.files.isNotEmpty()) {
+                ExportFileProgressList(exportStatus = exportStatus)
+            }
+        }
+    }
+}
+
+private fun confirmationDefaultPayablePrice(count: Int, unitPrice: Int): Int {
+    val billableCount = count.coerceAtMost(10)
+    val subtotal = billableCount * unitPrice
+    val discountPercent = when {
+        billableCount >= 10 -> 35
+        billableCount >= 9 -> 30
+        billableCount >= 8 -> 25
+        billableCount >= 7 -> 20
+        billableCount >= 6 -> 15
+        billableCount >= 5 -> 10
+        billableCount >= 4 -> 5
+        else -> 0
+    }
+    return subtotal * (100 - discountPercent) / 100
+}
+
+@Composable
 private fun ExportFileProgressList(exportStatus: ExportStatus.Copying) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.56f),
         shape = RoundedCornerShape(8.dp),
         modifier = Modifier
-            .widthIn(min = 320.dp, max = 560.dp)
+            .fillMaxWidth()
             .heightIn(max = 180.dp)
     ) {
         LazyColumn(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             itemsIndexed(exportStatus.files) { index, file ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "${index + 1}.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.70f),
-                        modifier = Modifier.width(30.dp)
-                    )
-                    Text(
-                        text = file.fileName,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = exportFileStateLabel(file.state),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = exportFileStateColor(file.state)
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${index + 1}.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.70f),
+                            modifier = Modifier.width(30.dp)
+                        )
+                        Text(
+                            text = file.fileName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = file.progressFraction?.let { formatPercent(it) } ?: exportFileStateLabel(file.state),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = exportFileStateColor(file.state)
+                        )
+                    }
+                    file.progressFraction?.let { progress ->
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } ?: LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
             }
         }
     }
 }
+
+private fun formatPercent(progress: Float): String =
+    "${(progress.coerceIn(0f, 1f) * 100).roundToInt()}%"
 
 @Composable
 private fun exportFileStateLabel(state: ExportFileState): String =
@@ -2153,7 +2567,11 @@ fun BottomPriceBar(
     buttonText: String,
     strings: LocalizedStrings
 ) {
-    Surface(tonalElevation = 8.dp) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 6.dp,
+        shadowElevation = 8.dp
+    ) {
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
@@ -2204,28 +2622,28 @@ private fun PhoneBottomPriceBarContent(
     buttonText: String,
     strings: LocalizedStrings
 ) {
+    val discount = (photoOriginalPrice + videoOriginalPrice) - (photoPayablePrice + videoPayablePrice)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
-            Text(strings.selectedCount(photoCount + videoCount))
-            SelectionPriceSummary(
-                photoCount = photoCount,
-                videoCount = videoCount,
-                photoOriginalPrice = photoOriginalPrice,
-                photoPayablePrice = photoPayablePrice,
-                videoOriginalPrice = videoOriginalPrice,
-                videoPayablePrice = videoPayablePrice,
-                totalPayablePrice = totalPayablePrice,
-                strings = strings
-            )
-        }
-        Button(onClick = onReviewClick) {
-            Text(buttonText)
+        CompactPriceSummary(
+            photoCount = photoCount,
+            videoCount = videoCount,
+            discount = discount,
+            totalPayablePrice = totalPayablePrice,
+            strings = strings,
+            modifier = Modifier.weight(1f)
+        )
+        Button(
+            onClick = onReviewClick,
+            shape = RoundedCornerShape(8.dp),
+            contentPadding = PaddingValues(horizontal = 22.dp, vertical = 14.dp)
+        ) {
+            Text(buttonText, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -2243,53 +2661,86 @@ private fun TabletBottomPriceBarContent(
     buttonText: String,
     strings: LocalizedStrings
 ) {
-    val selectedCount = photoCount + videoCount
+    val discount = (photoOriginalPrice + videoOriginalPrice) - (photoPayablePrice + videoPayablePrice)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 28.dp, vertical = 18.dp),
-        horizontalArrangement = Arrangement.spacedBy(18.dp),
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        SelectionMetricCard(
-            label = strings.selected,
-            value = selectedCount.toString(),
-            supportingText = "${strings.photo}: $photoCount   ${strings.video}: $videoCount",
-            modifier = Modifier.weight(0.9f)
-        )
-        TabletPriceBreakdownCard(
+        CompactPriceSummary(
             photoCount = photoCount,
             videoCount = videoCount,
-            photoOriginalPrice = photoOriginalPrice,
-            photoPayablePrice = photoPayablePrice,
-            videoOriginalPrice = videoOriginalPrice,
-            videoPayablePrice = videoPayablePrice,
+            discount = discount,
+            totalPayablePrice = totalPayablePrice,
             strings = strings,
-            modifier = Modifier.weight(1.2f)
+            modifier = Modifier.weight(1f)
         )
         Column(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(0.55f),
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                text = strings.total,
-                style = MaterialTheme.typography.labelLarge,
-                color = LocalContentColor.current.copy(alpha = 0.68f)
-            )
-            Text(
-                text = strings.price(totalPayablePrice),
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
             Button(
                 onClick = onReviewClick,
                 shape = RoundedCornerShape(8.dp),
-                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
-                modifier = Modifier.widthIn(min = 220.dp)
+                contentPadding = PaddingValues(horizontal = 30.dp, vertical = 16.dp),
+                modifier = Modifier
+                    .widthIn(min = 240.dp)
+                    .heightIn(min = 58.dp)
             ) {
                 Text(buttonText, style = MaterialTheme.typography.titleMedium)
             }
+        }
+    }
+}
+
+@Composable
+private fun CompactPriceSummary(
+    photoCount: Int,
+    videoCount: Int,
+    discount: Int,
+    totalPayablePrice: Int,
+    strings: LocalizedStrings,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(22.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = "${strings.selected}: ${photoCount + videoCount}",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "${strings.photoShort}: $photoCount   ${strings.videoShort}: $videoCount",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.64f)
+            )
+            if (discount > 0) {
+                Text(
+                    text = "${strings.discount}: ${strings.price(discount)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF2E7D32)
+                )
+            }
+        }
+        Column(horizontalAlignment = Alignment.Start) {
+            Text(
+                text = strings.total,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.64f)
+            )
+            Text(
+                text = strings.price(totalPayablePrice),
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }

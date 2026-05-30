@@ -68,23 +68,30 @@ enum class ExportFileState {
 
 data class ExportFileProgress(
     val fileName: String,
-    val state: ExportFileState
-)
+    val state: ExportFileState,
+    val bytesCopied: Long = 0L,
+    val totalBytes: Long? = null
+) {
+    val progressFraction: Float?
+        get() = totalBytes
+            ?.takeIf { it > 0L }
+            ?.let { total -> (bytesCopied.toFloat() / total.toFloat()).coerceIn(0f, 1f) }
+}
 
 sealed class ExportStatus {
     data object Idle : ExportStatus()
     data class Copying(
         val copiedFiles: Int = 0,
         val totalFiles: Int = 0,
+        val copiedBytes: Long = 0L,
+        val totalBytes: Long? = null,
         val currentFileName: String? = null,
         val files: List<ExportFileProgress> = emptyList()
     ) : ExportStatus() {
         val progressFraction: Float?
-            get() = if (totalFiles > 0) {
-                (copiedFiles.toFloat() / totalFiles.toFloat()).coerceIn(0f, 1f)
-            } else {
-                null
-            }
+            get() = totalBytes
+                ?.takeIf { it > 0L }
+                ?.let { total -> (copiedBytes.toFloat() / total.toFloat()).coerceIn(0f, 1f) }
     }
 
     data class Success(
@@ -175,6 +182,7 @@ class PhotoViewModel : ViewModel() {
     val photoUris = mutableStateListOf<Uri>()
     val likedPhotos = mutableStateListOf<Uri>()
     val folderDocuments = mutableStateListOf<FolderDocumentData>()
+    private val likedMediaItemCache = mutableStateListOf<MediaItemData>()
     private val likedPhotoUriMembership = mutableStateMapOf<Uri, Unit>()
     private val rawDocumentsByBaseName = mutableStateMapOf<String, List<FolderDocumentData>>()
     private val rotationByUri = mutableStateMapOf<Uri, Int>()
@@ -192,15 +200,19 @@ class PhotoViewModel : ViewModel() {
         private set
     var selectedPhotoIndex by mutableIntStateOf(-1)
         private set
+    var galleryTab by mutableStateOf(GalleryTab.All)
+        private set
+    var pendingReturnToFolderConfirmation by mutableStateOf(false)
+        private set
 
     val likedPhotoItems: List<MediaItemData>
-        get() = photos.filter { likedPhotoUriMembership.containsKey(it.uri) && it.mediaType == MediaType.Photo }
+        get() = likedMediaItemCache.filter { it.mediaType == MediaType.Photo }
 
     val likedVideoItems: List<MediaItemData>
-        get() = photos.filter { likedPhotoUriMembership.containsKey(it.uri) && it.mediaType == MediaType.Video }
+        get() = likedMediaItemCache.filter { it.mediaType == MediaType.Video }
 
     val likedMediaItems: List<MediaItemData>
-        get() = photos.filter { likedPhotoUriMembership.containsKey(it.uri) }
+        get() = likedMediaItemCache
 
     val likedPhotoUriSet: Set<Uri>
         get() = likedPhotoUriMembership.keys
@@ -288,11 +300,16 @@ class PhotoViewModel : ViewModel() {
             likedPhotos.add(uri)
             likedPhotoUriMembership[uri] = Unit
         }
+        rebuildLikedMediaCache()
         normalizeReviewViewerSelection()
     }
 
     fun navigateTo(screen: Screen) {
         currentScreen = screen
+    }
+
+    fun selectGalleryTab(tab: GalleryTab) {
+        galleryTab = tab
     }
 
     fun goToReviewOrWarn(): Boolean {
@@ -315,6 +332,13 @@ class PhotoViewModel : ViewModel() {
         return true
     }
 
+    fun showFavoritesFromViewerOrWarn(): Boolean {
+        selectionWarningMessage = null
+        galleryTab = GalleryTab.Favorites
+        currentScreen = Screen.Gallery
+        return true
+    }
+
     fun warn(message: UiMessage) {
         selectionWarningMessage = message
     }
@@ -324,14 +348,40 @@ class PhotoViewModel : ViewModel() {
     }
 
     fun handleBack(): Boolean {
+        if (currentScreen == Screen.Confirmation && exportStatus is ExportStatus.Success) {
+            reset()
+            return true
+        }
         currentScreen = when (currentScreen) {
             Screen.FolderSelection -> return false
             Screen.Gallery -> Screen.FolderSelection
-            Screen.PhotoDetail -> if (viewerSource == PhotoViewerSource.Review) Screen.Review else Screen.Gallery
+            Screen.PhotoDetail -> Screen.Gallery
             Screen.Review -> Screen.Gallery
-            Screen.Confirmation -> Screen.Review
+            Screen.Confirmation -> Screen.Gallery
         }
         return true
+    }
+
+    fun requestReturnToFolderSelection(): Boolean {
+        if (!hasActiveFolderSession()) {
+            currentScreen = Screen.FolderSelection
+            return true
+        }
+        pendingReturnToFolderConfirmation = true
+        return true
+    }
+
+    fun cancelReturnToFolderSelection() {
+        pendingReturnToFolderConfirmation = false
+    }
+
+    fun confirmReturnToFolderSelection() {
+        pendingReturnToFolderConfirmation = false
+        reset()
+    }
+
+    fun replaceExportStatus(status: ExportStatus) {
+        exportStatus = status
     }
 
     fun setPhotos(newPhotos: List<PhotoItemData>) {
@@ -345,6 +395,7 @@ class PhotoViewModel : ViewModel() {
         photoUris.addAll(photos.map { it.uri })
         likedPhotos.clear()
         likedPhotoUriMembership.clear()
+        likedMediaItemCache.clear()
         rotationByUri.clear()
         if (selectedPhotoIndex !in photos.indices) {
             selectedPhotoIndex = -1
@@ -407,16 +458,24 @@ class PhotoViewModel : ViewModel() {
         selectedFolderUri = null
         selectedPhotoIndex = -1
         viewerSource = PhotoViewerSource.Gallery
+        galleryTab = GalleryTab.All
+        pendingReturnToFolderConfirmation = false
         exportStatus = ExportStatus.Idle
         isLoadingMedia = false
         currentScreen = Screen.FolderSelection
     }
 
+    private fun hasActiveFolderSession(): Boolean =
+        selectedFolderUri != null ||
+            photos.isNotEmpty() ||
+            folderDocuments.isNotEmpty() ||
+            likedPhotoUriMembership.isNotEmpty()
+
     private fun normalizeReviewViewerSelection() {
         if (currentScreen != Screen.PhotoDetail || viewerSource != PhotoViewerSource.Review) return
         if (likedMediaItems.isEmpty()) {
             selectedPhotoIndex = -1
-            currentScreen = Screen.Review
+            currentScreen = Screen.Gallery
             return
         }
         if (selectedPhotoIndex > likedMediaItems.lastIndex) {
@@ -443,6 +502,11 @@ class PhotoViewModel : ViewModel() {
         )
     }
 
+    private fun rebuildLikedMediaCache() {
+        likedMediaItemCache.clear()
+        likedMediaItemCache.addAll(photos.filter { likedPhotoUriMembership.containsKey(it.uri) })
+    }
+
     suspend fun exportSelection(contentResolver: ContentResolver): ExportStatus {
         if (!shouldBeginExport(exportStatus)) {
             return exportStatus
@@ -467,10 +531,12 @@ class PhotoViewModel : ViewModel() {
                     treeUri = treeUri,
                     folderName = folderName,
                     selectedMedia = selectedMedia,
-                    onProgress = { copiedFiles, totalFiles, currentFileName, files ->
+                    onProgress = { copiedFiles, totalFiles, copiedBytes, totalBytes, currentFileName, files ->
                         exportStatus = ExportStatus.Copying(
                             copiedFiles = copiedFiles,
                             totalFiles = totalFiles,
+                            copiedBytes = copiedBytes,
+                            totalBytes = totalBytes,
                             currentFileName = currentFileName,
                             files = files
                         )
@@ -574,6 +640,8 @@ class PhotoViewModel : ViewModel() {
         onProgress: (
             copiedFiles: Int,
             totalFiles: Int,
+            copiedBytes: Long,
+            totalBytes: Long?,
             currentFileName: String,
             files: List<ExportFileProgress>
         ) -> Unit
@@ -595,16 +663,39 @@ class PhotoViewModel : ViewModel() {
                 MediaType.Video -> listOf(media.toFolderDocumentData())
             }
         }
+        val totalBytes = filesToCopy
+            .map { it.sizeBytes }
+            .takeIf { sizes -> sizes.all { it != null } }
+            ?.sumOf { it ?: 0L }
+        val copiedBytesByFile = LongArray(filesToCopy.size)
+        var lastProgressPublishMs = 0L
+
+        fun totalCopiedBytes(): Long =
+            copiedBytesByFile.sum()
+
+        fun publishProgress(index: Int, copiedCount: Int, currentFileName: String, force: Boolean = false) {
+            val now = System.currentTimeMillis()
+            if (!force && now - lastProgressPublishMs < 150L) return
+            lastProgressPublishMs = now
+            onProgress(
+                copiedCount,
+                filesToCopy.size,
+                totalCopiedBytes(),
+                totalBytes,
+                currentFileName,
+                exportFileProgress(
+                    filesToCopy = filesToCopy,
+                    copyingIndex = index.takeIf { it in filesToCopy.indices },
+                    copiedCount = copiedCount,
+                    copiedBytesByFile = copiedBytesByFile
+                )
+            )
+        }
 
         val createdFileUris = mutableListOf<Uri>()
         try {
             filesToCopy.forEachIndexed { index, source ->
-                onProgress(
-                    index,
-                    filesToCopy.size,
-                    source.displayName,
-                    exportFileProgress(filesToCopy, copyingIndex = index, copiedCount = index)
-                )
+                publishProgress(index = index, copiedCount = index, currentFileName = source.displayName, force = true)
                 val destinationUri = DocumentsContract.createDocument(
                     contentResolver,
                     exportFolderUri,
@@ -617,14 +708,14 @@ class PhotoViewModel : ViewModel() {
                     sourceUri = source.uri,
                     destinationUri = destinationUri,
                     displayName = source.displayName,
-                    expectedBytes = source.sizeBytes
+                    expectedBytes = source.sizeBytes,
+                    onProgress = { copiedBytes, _ ->
+                        copiedBytesByFile[index] = copiedBytes
+                        publishProgress(index = index, copiedCount = index, currentFileName = source.displayName)
+                    }
                 )
-                onProgress(
-                    index + 1,
-                    filesToCopy.size,
-                    source.displayName,
-                    exportFileProgress(filesToCopy, copyingIndex = null, copiedCount = index + 1)
-                )
+                copiedBytesByFile[index] = source.sizeBytes ?: copiedBytesByFile[index]
+                publishProgress(index = index, copiedCount = index + 1, currentFileName = source.displayName, force = true)
             }
         } catch (error: Throwable) {
             cleanupCreatedExportDocuments(
@@ -655,10 +746,18 @@ class PhotoViewModel : ViewModel() {
         sourceUri: Uri,
         destinationUri: Uri,
         displayName: String,
-        expectedBytes: Long?
+        expectedBytes: Long?,
+        onProgress: (copiedBytes: Long, totalBytes: Long?) -> Unit = { _, _ -> }
     ) {
         val resolvedExpectedBytes = expectedBytes ?: queryDocumentSize(contentResolver, sourceUri)
-        val copiedBytes = copyDocumentFileDescriptors(contentResolver, sourceUri, destinationUri, displayName)
+        val copiedBytes = copyDocumentFileDescriptors(
+            contentResolver = contentResolver,
+            sourceUri = sourceUri,
+            destinationUri = destinationUri,
+            displayName = displayName,
+            expectedBytes = resolvedExpectedBytes,
+            onProgress = onProgress
+        )
         verifyCopiedDocumentSize(contentResolver, destinationUri, copiedBytes, resolvedExpectedBytes, displayName)
     }
 
@@ -722,8 +821,22 @@ private class LocalizedExportException(
     val argument: String? = null
 ) : IllegalStateException(uiMessage.name)
 
-internal fun copyDocumentBytes(input: InputStream, output: OutputStream, displayName: String): Long {
-    val copiedBytes = input.copyTo(output)
+internal fun copyDocumentBytes(
+    input: InputStream,
+    output: OutputStream,
+    displayName: String,
+    expectedBytes: Long? = null,
+    onProgress: (copiedBytes: Long, totalBytes: Long?) -> Unit = { _, _ -> }
+): Long {
+    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+    var copiedBytes = 0L
+    while (true) {
+        val read = input.read(buffer)
+        if (read < 0) break
+        output.write(buffer, 0, read)
+        copiedBytes += read
+        onProgress(copiedBytes, expectedBytes)
+    }
     output.flush()
     if (copiedBytes <= 0L) {
         throw LocalizedExportException(UiMessage.CopyVerificationFailed, displayName)
@@ -745,7 +858,8 @@ internal fun copiedExportFileNames(status: ExportStatus.Copying): List<String> =
 private fun exportFileProgress(
     filesToCopy: List<FolderDocumentData>,
     copyingIndex: Int?,
-    copiedCount: Int
+    copiedCount: Int,
+    copiedBytesByFile: LongArray = LongArray(filesToCopy.size)
 ): List<ExportFileProgress> =
     filesToCopy.mapIndexed { index, file ->
         val state = when {
@@ -753,7 +867,17 @@ private fun exportFileProgress(
             index == copyingIndex -> ExportFileState.Copying
             else -> ExportFileState.Pending
         }
-        ExportFileProgress(file.displayName, state)
+        val copiedBytes = when (state) {
+            ExportFileState.Copied -> file.sizeBytes ?: copiedBytesByFile.getOrElse(index) { 0L }
+            ExportFileState.Copying -> copiedBytesByFile.getOrElse(index) { 0L }
+            ExportFileState.Pending -> 0L
+        }
+        ExportFileProgress(
+            fileName = file.displayName,
+            state = state,
+            bytesCopied = copiedBytes,
+            totalBytes = file.sizeBytes
+        )
     }
 
 internal fun cleanupCreatedExportDocuments(
@@ -771,23 +895,26 @@ internal fun copyDocumentFileDescriptors(
     contentResolver: ContentResolver,
     sourceUri: Uri,
     destinationUri: Uri,
-    displayName: String
+    displayName: String,
+    expectedBytes: Long? = null,
+    onProgress: (copiedBytes: Long, totalBytes: Long?) -> Unit = { _, _ -> }
 ): Long {
     val channelCopiedBytes = runCatching {
-        copyDocumentFileDescriptorsWithChannel(contentResolver, sourceUri, destinationUri, displayName)
+        copyDocumentFileDescriptorsWithChannel(contentResolver, sourceUri, destinationUri, displayName, onProgress)
     }.getOrNull()
     if (channelCopiedBytes != null && channelCopiedBytes > 0L) {
         return channelCopiedBytes
     }
 
-    return copyDocumentFileDescriptorsWithStreams(contentResolver, sourceUri, destinationUri, displayName)
+    return copyDocumentFileDescriptorsWithStreams(contentResolver, sourceUri, destinationUri, displayName, expectedBytes, onProgress)
 }
 
 private fun copyDocumentFileDescriptorsWithChannel(
     contentResolver: ContentResolver,
     sourceUri: Uri,
     destinationUri: Uri,
-    displayName: String
+    displayName: String,
+    onProgress: (copiedBytes: Long, totalBytes: Long?) -> Unit
 ): Long {
     val sourceDescriptor = contentResolver.openFileDescriptor(sourceUri, "r")
         ?: throw LocalizedExportException(UiMessage.CouldNotOpenInputStream)
@@ -799,7 +926,7 @@ private fun copyDocumentFileDescriptorsWithChannel(
             FileInputStream(source.fileDescriptor).channel.use { inputChannel ->
                 FileOutputStream(destination.fileDescriptor).channel.use { outputChannel ->
                     val inputSize = inputChannel.size()
-                    val copiedBytes = copyChannelBytes(inputChannel, outputChannel)
+                    val copiedBytes = copyChannelBytes(inputChannel, outputChannel, onProgress)
                     outputChannel.force(true)
                     if (copiedBytes != inputSize) {
                         throw LocalizedExportException(UiMessage.CopyVerificationFailed, displayName)
@@ -815,7 +942,9 @@ private fun copyDocumentFileDescriptorsWithStreams(
     contentResolver: ContentResolver,
     sourceUri: Uri,
     destinationUri: Uri,
-    displayName: String
+    displayName: String,
+    expectedBytes: Long?,
+    onProgress: (copiedBytes: Long, totalBytes: Long?) -> Unit
 ): Long {
     val sourceDescriptor = contentResolver.openFileDescriptor(sourceUri, "r")
         ?: throw LocalizedExportException(UiMessage.CouldNotOpenInputStream)
@@ -826,14 +955,18 @@ private fun copyDocumentFileDescriptorsWithStreams(
         destinationDescriptor.use { destination ->
             FileInputStream(source.fileDescriptor).use { input ->
                 FileOutputStream(destination.fileDescriptor).use { output ->
-                    return copyDocumentBytes(input, output, displayName)
+                    return copyDocumentBytes(input, output, displayName, expectedBytes, onProgress)
                 }
             }
         }
     }
 }
 
-internal fun copyChannelBytes(inputChannel: FileChannel, outputChannel: FileChannel): Long {
+internal fun copyChannelBytes(
+    inputChannel: FileChannel,
+    outputChannel: FileChannel,
+    onProgress: (copiedBytes: Long, totalBytes: Long?) -> Unit = { _, _ -> }
+): Long {
     val inputSize = inputChannel.size()
     var copiedBytes = 0L
     while (copiedBytes < inputSize) {
@@ -844,6 +977,7 @@ internal fun copyChannelBytes(inputChannel: FileChannel, outputChannel: FileChan
         )
         if (transferred <= 0L) break
         copiedBytes += transferred
+        onProgress(copiedBytes, inputSize)
     }
     return copiedBytes
 }

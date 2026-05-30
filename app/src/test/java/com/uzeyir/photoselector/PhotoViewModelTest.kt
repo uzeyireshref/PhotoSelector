@@ -2,6 +2,7 @@ package com.uzeyir.photoselector
 
 import android.net.FakeUri
 import android.net.Uri
+import androidx.media3.common.Player
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.Calendar
@@ -265,14 +266,31 @@ class PhotoViewModelTest {
     }
 
     @Test
-    fun backFromConfirmationReturnsToReview() {
+    fun backFromConfirmationReturnsToGallery() {
         val viewModel = PhotoViewModel()
         viewModel.navigateTo(Screen.Confirmation)
 
         val handled = viewModel.handleBack()
 
         assertEquals(true, handled)
-        assertEquals(Screen.Review, viewModel.currentScreen)
+        assertEquals(Screen.Gallery, viewModel.currentScreen)
+    }
+
+    @Test
+    fun backFromSuccessfulConfirmationReturnsHomeAndClearsSession() {
+        val viewModel = PhotoViewModel()
+        val photos = testPhotos(1)
+        viewModel.setPhotos(photos)
+        viewModel.toggleLike(photos[0].uri)
+        viewModel.navigateTo(Screen.Confirmation)
+        viewModel.replaceExportStatus(ExportStatus.Success(folderName = "done", copiedFiles = 1))
+
+        val handled = viewModel.handleBack()
+
+        assertEquals(true, handled)
+        assertEquals(Screen.FolderSelection, viewModel.currentScreen)
+        assertEquals(emptyList<MediaItemData>(), viewModel.photos)
+        assertEquals(0, viewModel.selectedPhotoCount)
     }
 
     @Test
@@ -288,7 +306,7 @@ class PhotoViewModelTest {
     }
 
     @Test
-    fun backFromReviewViewerReturnsToReview() {
+    fun backFromFavoritesViewerReturnsToGallery() {
         val viewModel = PhotoViewModel()
         val photos = testPhotos(1)
         viewModel.setPhotos(photos)
@@ -298,7 +316,7 @@ class PhotoViewModelTest {
         val handled = viewModel.handleBack()
 
         assertEquals(true, handled)
-        assertEquals(Screen.Review, viewModel.currentScreen)
+        assertEquals(Screen.Gallery, viewModel.currentScreen)
     }
 
     @Test
@@ -332,12 +350,12 @@ class PhotoViewModelTest {
         val viewModel = PhotoViewModel()
         viewModel.setPhotos(listOf(testPhoto("current.jpg")))
         viewModel.likedPhotos.add(FakeUri("previous-folder/old.jpg"))
-        viewModel.navigateTo(Screen.Review)
+        viewModel.navigateTo(Screen.Gallery)
 
         val continued = viewModel.goToConfirmationOrWarn()
 
         assertEquals(false, continued)
-        assertEquals(Screen.Review, viewModel.currentScreen)
+        assertEquals(Screen.Gallery, viewModel.currentScreen)
         assertEquals(UiMessage.SelectAtLeastOnePhoto, viewModel.selectionWarningMessage)
     }
 
@@ -357,15 +375,101 @@ class PhotoViewModelTest {
     }
 
     @Test
-    fun confirmationWithNoLikedPhotosShowsWarningAndStaysOnReview() {
+    fun reviewSelectionFromViewerReturnsToGalleryFavoritesTab() {
         val viewModel = PhotoViewModel()
-        viewModel.navigateTo(Screen.Review)
+        val photos = testPhotos(1)
+        viewModel.setPhotos(photos)
+        viewModel.toggleLike(photos[0].uri)
+        viewModel.openPhoto(photos[0].uri)
+
+        val continued = viewModel.showFavoritesFromViewerOrWarn()
+
+        assertEquals(true, continued)
+        assertEquals(Screen.Gallery, viewModel.currentScreen)
+        assertEquals(GalleryTab.Favorites, viewModel.galleryTab)
+        assertNull(viewModel.selectionWarningMessage)
+    }
+
+    @Test
+    fun galleryTabCanBeSelectedFromViewModel() {
+        val viewModel = PhotoViewModel()
+
+        viewModel.selectGalleryTab(GalleryTab.Favorites)
+
+        assertEquals(GalleryTab.Favorites, viewModel.galleryTab)
+    }
+
+    @Test
+    fun requestHomeFromGalleryShowsPendingResetConfirmationAndKeepsScreen() {
+        val viewModel = PhotoViewModel()
+        viewModel.setPhotos(testPhotos(1))
+        viewModel.navigateTo(Screen.Gallery)
+
+        val handled = viewModel.requestReturnToFolderSelection()
+
+        assertEquals(true, handled)
+        assertEquals(Screen.Gallery, viewModel.currentScreen)
+        assertEquals(true, viewModel.pendingReturnToFolderConfirmation)
+    }
+
+    @Test
+    fun cancelHomeResetConfirmationKeepsSelectionAndCurrentScreen() {
+        val viewModel = PhotoViewModel()
+        val photos = testPhotos(1)
+        viewModel.setPhotos(photos)
+        viewModel.toggleLike(photos[0].uri)
+        viewModel.navigateTo(Screen.Gallery)
+        viewModel.requestReturnToFolderSelection()
+
+        viewModel.cancelReturnToFolderSelection()
+
+        assertEquals(Screen.Gallery, viewModel.currentScreen)
+        assertEquals(false, viewModel.pendingReturnToFolderConfirmation)
+        assertEquals(1, viewModel.selectedPhotoCount)
+    }
+
+    @Test
+    fun confirmHomeResetReturnsToFolderSelectionAndClearsSelection() {
+        val viewModel = PhotoViewModel()
+        val photos = testPhotos(1)
+        viewModel.setPhotos(photos)
+        viewModel.toggleLike(photos[0].uri)
+        viewModel.navigateTo(Screen.Gallery)
+        viewModel.requestReturnToFolderSelection()
+
+        viewModel.confirmReturnToFolderSelection()
+
+        assertEquals(Screen.FolderSelection, viewModel.currentScreen)
+        assertEquals(false, viewModel.pendingReturnToFolderConfirmation)
+        assertEquals(0, viewModel.selectedPhotoCount)
+        assertEquals(emptyList<MediaItemData>(), viewModel.photos)
+    }
+
+    @Test
+    fun confirmationWithNoLikedPhotosShowsWarningAndStaysOnGallery() {
+        val viewModel = PhotoViewModel()
+        viewModel.navigateTo(Screen.Gallery)
 
         val continued = viewModel.goToConfirmationOrWarn()
 
         assertEquals(false, continued)
-        assertEquals(Screen.Review, viewModel.currentScreen)
+        assertEquals(Screen.Gallery, viewModel.currentScreen)
         assertEquals(UiMessage.SelectAtLeastOnePhoto, viewModel.selectionWarningMessage)
+    }
+
+    @Test
+    fun confirmationWithLikedPhotoNavigatesFromGalleryToConfirmationAndClearsWarning() {
+        val viewModel = PhotoViewModel()
+        val photos = testPhotos(1)
+        viewModel.setPhotos(photos)
+        viewModel.toggleLike(photos[0].uri)
+        viewModel.navigateTo(Screen.Gallery)
+
+        val continued = viewModel.goToConfirmationOrWarn()
+
+        assertEquals(true, continued)
+        assertEquals(Screen.Confirmation, viewModel.currentScreen)
+        assertNull(viewModel.selectionWarningMessage)
     }
 
     @Test
@@ -401,7 +505,7 @@ class PhotoViewModelTest {
     }
 
     @Test
-    fun unlikingLastPhotoInReviewViewerReturnsToReview() {
+    fun unlikingLastPhotoInFavoritesViewerReturnsToGallery() {
         val viewModel = PhotoViewModel()
         val photos = testPhotos(1)
         viewModel.setPhotos(photos)
@@ -410,7 +514,7 @@ class PhotoViewModelTest {
         viewModel.openLikedPhoto(photos[0].uri)
         viewModel.toggleLike(photos[0].uri)
 
-        assertEquals(Screen.Review, viewModel.currentScreen)
+        assertEquals(Screen.Gallery, viewModel.currentScreen)
         assertEquals(-1, viewModel.selectedPhotoIndex)
         assertNull(viewModel.selectedPhoto)
     }
@@ -442,15 +546,18 @@ class PhotoViewModelTest {
     fun copyDocumentBytesCopiesNonEmptyStreams() {
         val sourceBytes = byteArrayOf(1, 2, 3, 4)
         val destination = ByteArrayOutputStream()
+        val progress = mutableListOf<Long>()
 
         val copiedBytes = copyDocumentBytes(
             input = ByteArrayInputStream(sourceBytes),
             output = destination,
-            displayName = "IMG_0001.JPG"
+            displayName = "IMG_0001.JPG",
+            onProgress = { copied, _ -> progress.add(copied) }
         )
 
         assertEquals(4L, copiedBytes)
         assertArrayEquals(sourceBytes, destination.toByteArray())
+        assertEquals(4L, progress.last())
     }
 
     @Test
@@ -475,10 +582,22 @@ class PhotoViewModelTest {
 
     @Test
     fun exportProgressFractionIsBoundedByCopiedAndTotalFiles() {
-        assertEquals(0f, ExportStatus.Copying(copiedFiles = 0, totalFiles = 4).progressFraction)
-        assertEquals(0.5f, ExportStatus.Copying(copiedFiles = 2, totalFiles = 4).progressFraction)
-        assertEquals(1f, ExportStatus.Copying(copiedFiles = 5, totalFiles = 4).progressFraction)
-        assertEquals(null, ExportStatus.Copying(copiedFiles = 0, totalFiles = 0).progressFraction)
+        assertEquals(0f, ExportStatus.Copying(copiedBytes = 0, totalBytes = 400).progressFraction)
+        assertEquals(0.5f, ExportStatus.Copying(copiedBytes = 200, totalBytes = 400).progressFraction)
+        assertEquals(1f, ExportStatus.Copying(copiedBytes = 500, totalBytes = 400).progressFraction)
+        assertEquals(null, ExportStatus.Copying(copiedBytes = 0, totalBytes = null).progressFraction)
+    }
+
+    @Test
+    fun fileProgressFractionUsesByteCountsWhenSizeIsKnown() {
+        val file = ExportFileProgress(
+            fileName = "video.mp4",
+            state = ExportFileState.Copying,
+            bytesCopied = 512,
+            totalBytes = 1024
+        )
+
+        assertEquals(0.5f, file.progressFraction)
     }
 
     @Test
@@ -732,12 +851,107 @@ class PhotoViewModelTest {
     }
 
     @Test
+    fun videoControlsInsetLeavesRoomForTabletPriceBar() {
+        assertEquals(112, videoControlsBottomInsetDp(widthDp = 411, controlsVisible = true))
+        assertEquals(172, videoControlsBottomInsetDp(widthDp = 866, controlsVisible = true))
+        assertEquals(24, videoControlsBottomInsetDp(widthDp = 866, controlsVisible = false))
+    }
+
+    @Test
+    fun videoSurfaceTypesPreferSurfaceViewInlineAndTextureViewFullscreen() {
+        assertEquals(VideoSurfaceKind.SurfaceView, inlineVideoSurfaceKind())
+        assertEquals(VideoSurfaceKind.TextureView, fullscreenVideoSurfaceKind())
+        assertEquals(AspectResizeMode.Fit, inlineVideoResizeMode())
+        assertEquals(true, fullscreenVideoUsesComposeSurface())
+    }
+
+    @Test
     fun inlineVideoPlayerIsHiddenForFullscreenVideoUriOnly() {
         val videoUri = FakeUri("videos/clip.mp4")
 
-        assertEquals(true, shouldRenderInlineVideoPlayer(videoUri, fullscreenVideoUri = null))
-        assertEquals(false, shouldRenderInlineVideoPlayer(videoUri, fullscreenVideoUri = videoUri))
-        assertEquals(true, shouldRenderInlineVideoPlayer(videoUri, fullscreenVideoUri = FakeUri("videos/other.mp4")))
+        assertEquals(false, shouldRenderInlineVideoPlayer(videoUri, fullscreenVideoUri = null, activeInlineVideoUri = null))
+        assertEquals(false, shouldRenderInlineVideoPlayer(videoUri, fullscreenVideoUri = null, activeInlineVideoUri = videoUri))
+        assertEquals(false, shouldRenderInlineVideoPlayer(videoUri, fullscreenVideoUri = videoUri, activeInlineVideoUri = videoUri))
+        assertEquals(false, shouldRenderInlineVideoPlayer(videoUri, fullscreenVideoUri = null, activeInlineVideoUri = FakeUri("videos/other.mp4")))
+    }
+
+    @Test
+    fun sharedVideoSessionOpensFullscreenImmediately() {
+        val videoUri = FakeUri("videos/clip.mp4")
+        val initial = VideoPlaybackSession()
+
+        val fullscreen = initial.playFullscreen(videoUri)
+        val exited = fullscreen.exitFullscreen()
+
+        assertEquals(videoUri, fullscreen.activeUri)
+        assertEquals(videoUri, fullscreen.fullscreenUri)
+        assertEquals(null, exited.activeUri)
+        assertEquals(null, exited.fullscreenUri)
+    }
+
+    @Test
+    fun sharedVideoSessionClearsWhenPageChanges() {
+        val first = FakeUri("videos/first.mp4")
+        val second = FakeUri("videos/second.mp4")
+        val session = VideoPlaybackSession(activeUri = first, fullscreenUri = first)
+
+        val cleared = session.clearIfDifferentPage(second)
+
+        assertEquals(null, cleared.activeUri)
+        assertEquals(null, cleared.fullscreenUri)
+    }
+
+    @Test
+    fun videoFullscreenExitsWhenPlaybackEnds() {
+        assertEquals(false, shouldExitFullscreenForPlaybackState(Player.STATE_READY))
+        assertEquals(false, shouldExitFullscreenForPlaybackState(Player.STATE_BUFFERING))
+        assertEquals(true, shouldExitFullscreenForPlaybackState(Player.STATE_ENDED))
+    }
+
+    @Test
+    fun videoFullscreenShowsLoadingOnlyBeforeReady() {
+        assertEquals(true, shouldShowFullscreenVideoLoading(Player.STATE_IDLE))
+        assertEquals(true, shouldShowFullscreenVideoLoading(Player.STATE_BUFFERING))
+        assertEquals(false, shouldShowFullscreenVideoLoading(Player.STATE_READY))
+        assertEquals(false, shouldShowFullscreenVideoLoading(Player.STATE_ENDED))
+    }
+
+    @Test
+    fun videoPlaybackStateSelectsActiveAndFullscreenMedia() {
+        val first = testVideo("first.mp4")
+        val second = testVideo("second.mp4")
+        val session = VideoPlaybackSession().playFullscreen(second.uri)
+
+        val state = videoPlaybackStateFor(listOf(first, second), session)
+
+        assertEquals(second, state.activeMedia)
+        assertEquals(second, state.fullscreenMedia)
+        assertEquals(true, state.isFullscreen)
+    }
+
+    @Test
+    fun videoPlaybackStateIgnoresMissingSessionMedia() {
+        val media = testVideo("clip.mp4")
+        val session = VideoPlaybackSession().playFullscreen(FakeUri("missing.mp4"))
+
+        val state = videoPlaybackStateFor(listOf(media), session)
+
+        assertEquals(null, state.activeMedia)
+        assertEquals(null, state.fullscreenMedia)
+        assertEquals(false, state.isFullscreen)
+    }
+
+    @Test
+    fun videoPosterRequestSizeCapsLargeSurfacesWhileKeepingAspect() {
+        assertEquals(640 to 360, videoPosterRequestSizePx(containerWidthPx = 1920, containerHeightPx = 1080))
+        assertEquals(360 to 640, videoPosterRequestSizePx(containerWidthPx = 1080, containerHeightPx = 1920))
+    }
+
+    @Test
+    fun videoPosterRequestSizeDoesNotUpscaleSmallOrInvalidSurfaces() {
+        assertEquals(320 to 180, videoPosterRequestSizePx(containerWidthPx = 320, containerHeightPx = 180))
+        assertEquals(1 to 1, videoPosterRequestSizePx(containerWidthPx = 0, containerHeightPx = 180))
+        assertEquals(1 to 1, videoPosterRequestSizePx(containerWidthPx = 320, containerHeightPx = 0))
     }
 
     @Test
