@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -36,8 +37,6 @@ data class MediaItemData(
     val sizeBytes: Long? = null
 )
 
-typealias PhotoItemData = MediaItemData
-
 data class FolderDocumentData(
     val uri: Uri,
     val displayName: String,
@@ -60,22 +59,24 @@ data class PricingDiscountTier(
     val discountPercent: Int
 )
 
-enum class ExportFileState {
-    Pending,
-    Copying,
-    Copied
-}
+private val defaultDiscountTiers = listOf(
+    PricingDiscountTier(photoCount = 4, discountPercent = 5),
+    PricingDiscountTier(photoCount = 5, discountPercent = 10),
+    PricingDiscountTier(photoCount = 6, discountPercent = 15),
+    PricingDiscountTier(photoCount = 7, discountPercent = 20),
+    PricingDiscountTier(photoCount = 8, discountPercent = 25),
+    PricingDiscountTier(photoCount = 9, discountPercent = 30),
+    PricingDiscountTier(photoCount = 10, discountPercent = 35)
+)
 
-data class ExportFileProgress(
-    val fileName: String,
-    val state: ExportFileState,
-    val bytesCopied: Long = 0L,
-    val totalBytes: Long? = null
-) {
-    val progressFraction: Float?
-        get() = totalBytes
-            ?.takeIf { it > 0L }
-            ?.let { total -> (bytesCopied.toFloat() / total.toFloat()).coerceIn(0f, 1f) }
+internal fun discountedPayablePrice(count: Int, unitPrice: Int): Int {
+    val billableCount = count.coerceAtMost(10)
+    val subtotal = billableCount * unitPrice
+    val discountPercent = defaultDiscountTiers
+        .lastOrNull { billableCount >= it.photoCount }
+        ?.discountPercent
+        ?: 0
+    return subtotal * (100 - discountPercent) / 100
 }
 
 sealed class ExportStatus {
@@ -86,12 +87,18 @@ sealed class ExportStatus {
         val copiedBytes: Long = 0L,
         val totalBytes: Long? = null,
         val currentFileName: String? = null,
-        val files: List<ExportFileProgress> = emptyList()
+        val currentFileBytes: Long = 0L,
+        val currentFileTotalBytes: Long? = null
     ) : ExportStatus() {
         val progressFraction: Float?
             get() = totalBytes
                 ?.takeIf { it > 0L }
                 ?.let { total -> (copiedBytes.toFloat() / total.toFloat()).coerceIn(0f, 1f) }
+
+        val currentFileProgressFraction: Float?
+            get() = currentFileTotalBytes
+                ?.takeIf { it > 0L }
+                ?.let { total -> (currentFileBytes.toFloat() / total.toFloat()).coerceIn(0f, 1f) }
     }
 
     data class Success(
@@ -110,8 +117,7 @@ internal data class FolderLoadResult(
 )
 
 enum class PhotoViewerSource {
-    Gallery,
-    Review
+    Gallery
 }
 
 fun FolderDocumentData.toMediaItemOrNull(): MediaItemData? {
@@ -179,7 +185,6 @@ private val videoExtensions = setOf(
 class PhotoViewModel : ViewModel() {
     var currentScreen by mutableStateOf(Screen.FolderSelection)
     val photos = mutableStateListOf<MediaItemData>()
-    val photoUris = mutableStateListOf<Uri>()
     val likedPhotos = mutableStateListOf<Uri>()
     val folderDocuments = mutableStateListOf<FolderDocumentData>()
     private val likedMediaItemCache = mutableStateListOf<MediaItemData>()
@@ -218,10 +223,7 @@ class PhotoViewModel : ViewModel() {
         get() = likedPhotoUriMembership.keys
 
     val viewerPhotos: List<MediaItemData>
-        get() = when (viewerSource) {
-            PhotoViewerSource.Gallery -> photos
-            PhotoViewerSource.Review -> likedMediaItems
-        }
+        get() = photos
 
     val selectedPhoto: MediaItemData?
         get() = viewerPhotos.getOrNull(selectedPhotoIndex)
@@ -238,16 +240,6 @@ class PhotoViewModel : ViewModel() {
 
     private val pricePerPhoto = 300
     private val pricePerVideo = 1000
-    private val maxBillableItems = 10
-    private val discountTiers = listOf(
-        PricingDiscountTier(photoCount = 4, discountPercent = 5),
-        PricingDiscountTier(photoCount = 5, discountPercent = 10),
-        PricingDiscountTier(photoCount = 6, discountPercent = 15),
-        PricingDiscountTier(photoCount = 7, discountPercent = 20),
-        PricingDiscountTier(photoCount = 8, discountPercent = 25),
-        PricingDiscountTier(photoCount = 9, discountPercent = 30),
-        PricingDiscountTier(photoCount = 10, discountPercent = 35)
-    )
 
     val selectedPhotoCount: Int
         get() = likedPhotoItems.size
@@ -282,15 +274,8 @@ class PhotoViewModel : ViewModel() {
     val totalDisplayPrice: Int
         get() = photoDisplayPrice + videoDisplayPrice
 
-    private fun discountedPrice(count: Int, unitPrice: Int): Int {
-        val billableCount = count.coerceAtMost(maxBillableItems)
-        val subtotal = billableCount * unitPrice
-        val discountPercent = discountTiers
-            .lastOrNull { billableCount >= it.photoCount }
-            ?.discountPercent
-            ?: 0
-        return subtotal * (100 - discountPercent) / 100
-    }
+    private fun discountedPrice(count: Int, unitPrice: Int): Int =
+        discountedPayablePrice(count, unitPrice)
 
     fun toggleLike(uri: Uri) {
         if (likedPhotoUriMembership.containsKey(uri)) {
@@ -301,7 +286,6 @@ class PhotoViewModel : ViewModel() {
             likedPhotoUriMembership[uri] = Unit
         }
         rebuildLikedMediaCache()
-        normalizeReviewViewerSelection()
     }
 
     fun navigateTo(screen: Screen) {
@@ -310,16 +294,6 @@ class PhotoViewModel : ViewModel() {
 
     fun selectGalleryTab(tab: GalleryTab) {
         galleryTab = tab
-    }
-
-    fun goToReviewOrWarn(): Boolean {
-        if (likedMediaItems.isEmpty()) {
-            selectionWarningMessage = UiMessage.SelectAtLeastOnePhoto
-            return false
-        }
-        selectionWarningMessage = null
-        currentScreen = Screen.Review
-        return true
     }
 
     fun goToConfirmationOrWarn(): Boolean {
@@ -356,7 +330,6 @@ class PhotoViewModel : ViewModel() {
             Screen.FolderSelection -> return false
             Screen.Gallery -> Screen.FolderSelection
             Screen.PhotoDetail -> Screen.Gallery
-            Screen.Review -> Screen.Gallery
             Screen.Confirmation -> Screen.Gallery
         }
         return true
@@ -384,15 +357,13 @@ class PhotoViewModel : ViewModel() {
         exportStatus = status
     }
 
-    fun setPhotos(newPhotos: List<PhotoItemData>) {
+    fun setPhotos(newPhotos: List<MediaItemData>) {
         setMediaItems(newPhotos)
     }
 
     fun setMediaItems(newMediaItems: List<MediaItemData>) {
         photos.clear()
         photos.addAll(sortMediaItemsForGallery(newMediaItems))
-        photoUris.clear()
-        photoUris.addAll(photos.map { it.uri })
         likedPhotos.clear()
         likedPhotoUriMembership.clear()
         likedMediaItemCache.clear()
@@ -417,19 +388,17 @@ class PhotoViewModel : ViewModel() {
     }
 
     fun setFolderDocuments(newDocuments: List<FolderDocumentData>) {
+        val exportDocuments = newDocuments.filter { document ->
+            document.displayName.extension().uppercase(Locale.US) in rawExtensions
+        }
         folderDocuments.clear()
-        folderDocuments.addAll(newDocuments)
-        rebuildRawDocumentIndex(newDocuments)
+        folderDocuments.addAll(exportDocuments)
+        rebuildRawDocumentIndex(exportDocuments)
     }
 
     fun openPhoto(uri: Uri) {
         viewerSource = PhotoViewerSource.Gallery
         openPhotoAt(photos.indexOfFirst { it.uri == uri })
-    }
-
-    fun openLikedPhoto(uri: Uri) {
-        viewerSource = PhotoViewerSource.Review
-        openPhotoAt(likedMediaItems.indexOfFirst { it.uri == uri })
     }
 
     fun openPhotoAt(index: Int) {
@@ -470,18 +439,6 @@ class PhotoViewModel : ViewModel() {
             photos.isNotEmpty() ||
             folderDocuments.isNotEmpty() ||
             likedPhotoUriMembership.isNotEmpty()
-
-    private fun normalizeReviewViewerSelection() {
-        if (currentScreen != Screen.PhotoDetail || viewerSource != PhotoViewerSource.Review) return
-        if (likedMediaItems.isEmpty()) {
-            selectedPhotoIndex = -1
-            currentScreen = Screen.Gallery
-            return
-        }
-        if (selectedPhotoIndex > likedMediaItems.lastIndex) {
-            selectedPhotoIndex = likedMediaItems.lastIndex
-        }
-    }
 
     fun matchingRawFilesFor(photo: MediaItemData): List<FolderDocumentData> {
         if (photo.mediaType != MediaType.Photo) return emptyList()
@@ -531,15 +488,10 @@ class PhotoViewModel : ViewModel() {
                     treeUri = treeUri,
                     folderName = folderName,
                     selectedMedia = selectedMedia,
-                    onProgress = { copiedFiles, totalFiles, copiedBytes, totalBytes, currentFileName, files ->
-                        exportStatus = ExportStatus.Copying(
-                            copiedFiles = copiedFiles,
-                            totalFiles = totalFiles,
-                            copiedBytes = copiedBytes,
-                            totalBytes = totalBytes,
-                            currentFileName = currentFileName,
-                            files = files
-                        )
+                    onProgress = { status ->
+                        runBlocking(Dispatchers.Main.immediate) {
+                            exportStatus = status
+                        }
                     }
                 )
             }.getOrElse { error ->
@@ -632,30 +584,18 @@ class PhotoViewModel : ViewModel() {
         return FolderLoadResult(documents = documents, mediaItems = mediaItems)
     }
 
-    private fun copySelectedFiles(
+    private suspend fun copySelectedFiles(
         contentResolver: ContentResolver,
         treeUri: Uri,
         folderName: String,
         selectedMedia: List<MediaItemData>,
-        onProgress: (
-            copiedFiles: Int,
-            totalFiles: Int,
-            copiedBytes: Long,
-            totalBytes: Long?,
-            currentFileName: String,
-            files: List<ExportFileProgress>
-        ) -> Unit
+        onProgress: (ExportStatus.Copying) -> Unit
     ): ExportStatus {
         val parentDocumentUri = DocumentsContract.buildDocumentUriUsingTree(
             treeUri,
             DocumentsContract.getTreeDocumentId(treeUri)
         )
-        val exportFolderUri = DocumentsContract.createDocument(
-            contentResolver,
-            parentDocumentUri,
-            DocumentsContract.Document.MIME_TYPE_DIR,
-            folderName
-        ) ?: localizedError(UiMessage.CouldNotCreateExportFolder)
+        val (exportFolderUri, actualFolderName) = createExportFolder(contentResolver, parentDocumentUri, folderName)
 
         val filesToCopy = selectedMedia.flatMap { media ->
             when (media.mediaType) {
@@ -673,21 +613,26 @@ class PhotoViewModel : ViewModel() {
         fun totalCopiedBytes(): Long =
             copiedBytesByFile.sum()
 
-        fun publishProgress(index: Int, copiedCount: Int, currentFileName: String, force: Boolean = false) {
+        fun publishProgress(
+            index: Int,
+            copiedCount: Int,
+            currentFileName: String,
+            currentFileBytes: Long,
+            currentFileTotalBytes: Long?,
+            force: Boolean = false
+        ) {
             val now = System.currentTimeMillis()
             if (!force && now - lastProgressPublishMs < 150L) return
             lastProgressPublishMs = now
             onProgress(
-                copiedCount,
-                filesToCopy.size,
-                totalCopiedBytes(),
-                totalBytes,
-                currentFileName,
-                exportFileProgress(
-                    filesToCopy = filesToCopy,
-                    copyingIndex = index.takeIf { it in filesToCopy.indices },
-                    copiedCount = copiedCount,
-                    copiedBytesByFile = copiedBytesByFile
+                ExportStatus.Copying(
+                    copiedFiles = copiedCount,
+                    totalFiles = filesToCopy.size,
+                    copiedBytes = totalCopiedBytes(),
+                    totalBytes = totalBytes,
+                    currentFileName = currentFileName,
+                    currentFileBytes = currentFileBytes,
+                    currentFileTotalBytes = currentFileTotalBytes
                 )
             )
         }
@@ -695,7 +640,14 @@ class PhotoViewModel : ViewModel() {
         val createdFileUris = mutableListOf<Uri>()
         try {
             filesToCopy.forEachIndexed { index, source ->
-                publishProgress(index = index, copiedCount = index, currentFileName = source.displayName, force = true)
+                publishProgress(
+                    index = index,
+                    copiedCount = index,
+                    currentFileName = source.displayName,
+                    currentFileBytes = 0L,
+                    currentFileTotalBytes = source.sizeBytes,
+                    force = true
+                )
                 val destinationUri = DocumentsContract.createDocument(
                     contentResolver,
                     exportFolderUri,
@@ -711,11 +663,24 @@ class PhotoViewModel : ViewModel() {
                     expectedBytes = source.sizeBytes,
                     onProgress = { copiedBytes, _ ->
                         copiedBytesByFile[index] = copiedBytes
-                        publishProgress(index = index, copiedCount = index, currentFileName = source.displayName)
+                        publishProgress(
+                            index = index,
+                            copiedCount = index,
+                            currentFileName = source.displayName,
+                            currentFileBytes = copiedBytes,
+                            currentFileTotalBytes = source.sizeBytes
+                        )
                     }
                 )
                 copiedBytesByFile[index] = source.sizeBytes ?: copiedBytesByFile[index]
-                publishProgress(index = index, copiedCount = index + 1, currentFileName = source.displayName, force = true)
+                publishProgress(
+                    index = index,
+                    copiedCount = index + 1,
+                    currentFileName = source.displayName,
+                    currentFileBytes = copiedBytesByFile[index],
+                    currentFileTotalBytes = source.sizeBytes,
+                    force = true
+                )
             }
         } catch (error: Throwable) {
             cleanupCreatedExportDocuments(
@@ -727,7 +692,25 @@ class PhotoViewModel : ViewModel() {
             throw error
         }
 
-        return ExportStatus.Success(folderName = folderName, copiedFiles = filesToCopy.size)
+        return ExportStatus.Success(folderName = actualFolderName, copiedFiles = filesToCopy.size)
+    }
+
+    private fun createExportFolder(
+        contentResolver: ContentResolver,
+        parentDocumentUri: Uri,
+        baseFolderName: String
+    ): Pair<Uri, String> {
+        for (attempt in 1..MAX_EXPORT_FOLDER_CREATE_ATTEMPTS) {
+            val candidateName = exportFolderName(baseFolderName, attempt)
+            val folderUri = DocumentsContract.createDocument(
+                contentResolver,
+                parentDocumentUri,
+                DocumentsContract.Document.MIME_TYPE_DIR,
+                candidateName
+            )
+            if (folderUri != null) return folderUri to candidateName
+        }
+        localizedError(UiMessage.CouldNotCreateExportFolder)
     }
 
     private fun MediaItemData.toFolderDocumentData(): FolderDocumentData =
@@ -807,14 +790,18 @@ class PhotoViewModel : ViewModel() {
 
     private companion object {
         val rawExtensions = setOf("CR3", "CR2", "NEF", "ARW", "DNG", "RAF", "RW2", "ORF")
+        const val MAX_EXPORT_FOLDER_CREATE_ATTEMPTS = 20
     }
 }
 
 internal fun formatExportFolderTimestamp(date: Date): String =
-    SimpleDateFormat("HH.mm_dd-MM", Locale.US).format(date)
+    SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(date)
 
-internal fun exportFolderName(date: Date): String =
-    formatExportFolderTimestamp(date)
+internal fun exportFolderName(date: Date, attempt: Int = 1): String =
+    exportFolderName(formatExportFolderTimestamp(date), attempt)
+
+internal fun exportFolderName(baseName: String, attempt: Int = 1): String =
+    if (attempt <= 1) baseName else "${baseName}_$attempt"
 
 private class LocalizedExportException(
     val uiMessage: UiMessage,
@@ -849,36 +836,6 @@ internal fun shouldBeginExport(exportStatus: ExportStatus): Boolean =
 
 internal fun exportProgressCountLabel(status: ExportStatus.Copying): String? =
     if (status.totalFiles > 0) "${status.copiedFiles.coerceIn(0, status.totalFiles)}/${status.totalFiles}" else null
-
-internal fun copiedExportFileNames(status: ExportStatus.Copying): List<String> =
-    status.files
-        .filter { it.state == ExportFileState.Copied }
-        .map { it.fileName }
-
-private fun exportFileProgress(
-    filesToCopy: List<FolderDocumentData>,
-    copyingIndex: Int?,
-    copiedCount: Int,
-    copiedBytesByFile: LongArray = LongArray(filesToCopy.size)
-): List<ExportFileProgress> =
-    filesToCopy.mapIndexed { index, file ->
-        val state = when {
-            index < copiedCount -> ExportFileState.Copied
-            index == copyingIndex -> ExportFileState.Copying
-            else -> ExportFileState.Pending
-        }
-        val copiedBytes = when (state) {
-            ExportFileState.Copied -> file.sizeBytes ?: copiedBytesByFile.getOrElse(index) { 0L }
-            ExportFileState.Copying -> copiedBytesByFile.getOrElse(index) { 0L }
-            ExportFileState.Pending -> 0L
-        }
-        ExportFileProgress(
-            fileName = file.displayName,
-            state = state,
-            bytesCopied = copiedBytes,
-            totalBytes = file.sizeBytes
-        )
-    }
 
 internal fun cleanupCreatedExportDocuments(
     createdFileUris: List<Uri>,
@@ -927,7 +884,6 @@ private fun copyDocumentFileDescriptorsWithChannel(
                 FileOutputStream(destination.fileDescriptor).channel.use { outputChannel ->
                     val inputSize = inputChannel.size()
                     val copiedBytes = copyChannelBytes(inputChannel, outputChannel, onProgress)
-                    outputChannel.force(true)
                     if (copiedBytes != inputSize) {
                         throw LocalizedExportException(UiMessage.CopyVerificationFailed, displayName)
                     }

@@ -166,6 +166,14 @@ class PhotoViewModelTest {
     }
 
     @Test
+    fun defaultDiscountedPayablePriceMatchesPhotoPricingPolicy() {
+        assertEquals(900, discountedPayablePrice(count = 3, unitPrice = 300))
+        assertEquals(1140, discountedPayablePrice(count = 4, unitPrice = 300))
+        assertEquals(1950, discountedPayablePrice(count = 10, unitPrice = 300))
+        assertEquals(1950, discountedPayablePrice(count = 12, unitPrice = 300))
+    }
+
+    @Test
     fun cappedPriceDoesNotIncreaseAfterElevenPhotos() {
         val viewModel = PhotoViewModel()
         val photos = testPhotos(15)
@@ -255,17 +263,6 @@ class PhotoViewModelTest {
     }
 
     @Test
-    fun backFromReviewReturnsToGallery() {
-        val viewModel = PhotoViewModel()
-        viewModel.navigateTo(Screen.Review)
-
-        val handled = viewModel.handleBack()
-
-        assertEquals(true, handled)
-        assertEquals(Screen.Gallery, viewModel.currentScreen)
-    }
-
-    @Test
     fun backFromConfirmationReturnsToGallery() {
         val viewModel = PhotoViewModel()
         viewModel.navigateTo(Screen.Confirmation)
@@ -306,46 +303,6 @@ class PhotoViewModelTest {
     }
 
     @Test
-    fun backFromFavoritesViewerReturnsToGallery() {
-        val viewModel = PhotoViewModel()
-        val photos = testPhotos(1)
-        viewModel.setPhotos(photos)
-        viewModel.toggleLike(photos[0].uri)
-        viewModel.openLikedPhoto(photos[0].uri)
-
-        val handled = viewModel.handleBack()
-
-        assertEquals(true, handled)
-        assertEquals(Screen.Gallery, viewModel.currentScreen)
-    }
-
-    @Test
-    fun reviewSelectionWithNoLikedPhotosShowsWarningAndStaysOnCurrentScreen() {
-        val viewModel = PhotoViewModel()
-        viewModel.navigateTo(Screen.Gallery)
-
-        val continued = viewModel.goToReviewOrWarn()
-
-        assertEquals(false, continued)
-        assertEquals(Screen.Gallery, viewModel.currentScreen)
-        assertEquals(UiMessage.SelectAtLeastOnePhoto, viewModel.selectionWarningMessage)
-    }
-
-    @Test
-    fun reviewSelectionIgnoresStaleLikedUrisFromPreviousFolder() {
-        val viewModel = PhotoViewModel()
-        viewModel.setPhotos(listOf(testPhoto("current.jpg")))
-        viewModel.likedPhotos.add(FakeUri("previous-folder/old.jpg"))
-        viewModel.navigateTo(Screen.Gallery)
-
-        val continued = viewModel.goToReviewOrWarn()
-
-        assertEquals(false, continued)
-        assertEquals(Screen.Gallery, viewModel.currentScreen)
-        assertEquals(UiMessage.SelectAtLeastOnePhoto, viewModel.selectionWarningMessage)
-    }
-
-    @Test
     fun confirmationIgnoresStaleLikedUrisFromPreviousFolder() {
         val viewModel = PhotoViewModel()
         viewModel.setPhotos(listOf(testPhoto("current.jpg")))
@@ -360,22 +317,7 @@ class PhotoViewModelTest {
     }
 
     @Test
-    fun reviewSelectionWithLikedPhotoNavigatesToReviewAndClearsWarning() {
-        val viewModel = PhotoViewModel()
-        val photos = testPhotos(1)
-        viewModel.setPhotos(photos)
-        viewModel.toggleLike(photos[0].uri)
-        viewModel.navigateTo(Screen.Gallery)
-
-        val continued = viewModel.goToReviewOrWarn()
-
-        assertEquals(true, continued)
-        assertEquals(Screen.Review, viewModel.currentScreen)
-        assertNull(viewModel.selectionWarningMessage)
-    }
-
-    @Test
-    fun reviewSelectionFromViewerReturnsToGalleryFavoritesTab() {
+    fun favoritesActionFromViewerReturnsToGalleryFavoritesTab() {
         val viewModel = PhotoViewModel()
         val photos = testPhotos(1)
         viewModel.setPhotos(photos)
@@ -473,53 +415,6 @@ class PhotoViewModelTest {
     }
 
     @Test
-    fun openLikedPhoto_usesOnlyLikedPhotosInViewer() {
-        val viewModel = PhotoViewModel()
-        val photos = testPhotos(3)
-        viewModel.setPhotos(photos)
-        viewModel.toggleLike(photos[0].uri)
-        viewModel.toggleLike(photos[2].uri)
-
-        viewModel.openLikedPhoto(photos[2].uri)
-
-        assertEquals(Screen.PhotoDetail, viewModel.currentScreen)
-        assertEquals(PhotoViewerSource.Review, viewModel.viewerSource)
-        assertEquals(0, viewModel.selectedPhotoIndex)
-        assertEquals(listOf("photo_3.jpg", "photo_1.jpg"), viewModel.viewerPhotos.map { it.displayName })
-        assertEquals("photo_3.jpg", viewModel.selectedPhoto?.displayName)
-    }
-
-    @Test
-    fun reviewViewerNavigationStaysWithinLikedPhotos() {
-        val viewModel = PhotoViewModel()
-        val photos = testPhotos(3)
-        viewModel.setPhotos(photos)
-        viewModel.toggleLike(photos[0].uri)
-        viewModel.toggleLike(photos[2].uri)
-
-        viewModel.openLikedPhoto(photos[0].uri)
-        viewModel.showPreviousPhoto()
-
-        assertEquals(0, viewModel.selectedPhotoIndex)
-        assertEquals("photo_3.jpg", viewModel.selectedPhoto?.displayName)
-    }
-
-    @Test
-    fun unlikingLastPhotoInFavoritesViewerReturnsToGallery() {
-        val viewModel = PhotoViewModel()
-        val photos = testPhotos(1)
-        viewModel.setPhotos(photos)
-        viewModel.toggleLike(photos[0].uri)
-
-        viewModel.openLikedPhoto(photos[0].uri)
-        viewModel.toggleLike(photos[0].uri)
-
-        assertEquals(Screen.Gallery, viewModel.currentScreen)
-        assertEquals(-1, viewModel.selectedPhotoIndex)
-        assertNull(viewModel.selectedPhoto)
-    }
-
-    @Test
     fun exportSummaryCountsLikedJpgsAndMatchingRawFiles() {
         val viewModel = PhotoViewModel()
         val photos = testPhotos(3)
@@ -589,37 +484,20 @@ class PhotoViewModelTest {
     }
 
     @Test
-    fun fileProgressFractionUsesByteCountsWhenSizeIsKnown() {
-        val file = ExportFileProgress(
-            fileName = "video.mp4",
-            state = ExportFileState.Copying,
-            bytesCopied = 512,
-            totalBytes = 1024
+    fun activeFileProgressFractionUsesCurrentFileByteCountsWhenSizeIsKnown() {
+        val status = ExportStatus.Copying(
+            currentFileName = "video.mp4",
+            currentFileBytes = 512,
+            currentFileTotalBytes = 1024
         )
 
-        assertEquals(0.5f, file.progressFraction)
+        assertEquals(0.5f, status.currentFileProgressFraction)
     }
 
     @Test
     fun exportProgressLabelShowsCopiedAndTotalCounts() {
         assertEquals("2/5", exportProgressCountLabel(ExportStatus.Copying(copiedFiles = 2, totalFiles = 5)))
         assertEquals(null, exportProgressCountLabel(ExportStatus.Copying()))
-    }
-
-    @Test
-    fun exportProgressTracksSuccessfulFiles() {
-        val status = ExportStatus.Copying(
-            copiedFiles = 2,
-            totalFiles = 3,
-            currentFileName = "third.jpg",
-            files = listOf(
-                ExportFileProgress("first.jpg", ExportFileState.Copied),
-                ExportFileProgress("second.jpg", ExportFileState.Copied),
-                ExportFileProgress("third.jpg", ExportFileState.Copying)
-            )
-        )
-
-        assertEquals(listOf("first.jpg", "second.jpg"), copiedExportFileNames(status))
     }
 
     @Test
@@ -772,7 +650,7 @@ class PhotoViewModelTest {
     }
 
     @Test
-    fun exportFolderTimestampUsesHourMinuteDayMonthFormat() {
+    fun exportFolderTimestampUsesYearMonthDayHourMinuteSecondFormat() {
         val calendar = Calendar.getInstance().apply {
             clear()
             set(2026, Calendar.MAY, 29, 19, 26, 0)
@@ -780,11 +658,11 @@ class PhotoViewModelTest {
 
         val timestamp = formatExportFolderTimestamp(calendar.time)
 
-        assertEquals("19.26_29-05", timestamp)
+        assertEquals("2026-05-29_19-26-00", timestamp)
     }
 
     @Test
-    fun exportFolderNameUsesOnlyTimestampWithoutPrefix() {
+    fun exportFolderNameUsesTimestampWithoutPrefixForFirstAttempt() {
         val calendar = Calendar.getInstance().apply {
             clear()
             set(2026, Calendar.MAY, 29, 19, 26, 0)
@@ -792,7 +670,18 @@ class PhotoViewModelTest {
 
         val folderName = exportFolderName(calendar.time)
 
-        assertEquals("19.26_29-05", folderName)
+        assertEquals("2026-05-29_19-26-00", folderName)
+    }
+
+    @Test
+    fun exportFolderNameAddsSuffixForRetryAttempts() {
+        val calendar = Calendar.getInstance().apply {
+            clear()
+            set(2026, Calendar.MAY, 29, 19, 26, 0)
+        }
+
+        assertEquals("2026-05-29_19-26-00_2", exportFolderName(calendar.time, attempt = 2))
+        assertEquals("2026-05-29_19-26-00_3", exportFolderName(calendar.time, attempt = 3))
     }
 
     @Test
@@ -848,31 +737,6 @@ class PhotoViewModelTest {
                 rotationDegrees = 90
             )
         )
-    }
-
-    @Test
-    fun videoControlsInsetLeavesRoomForTabletPriceBar() {
-        assertEquals(112, videoControlsBottomInsetDp(widthDp = 411, controlsVisible = true))
-        assertEquals(172, videoControlsBottomInsetDp(widthDp = 866, controlsVisible = true))
-        assertEquals(24, videoControlsBottomInsetDp(widthDp = 866, controlsVisible = false))
-    }
-
-    @Test
-    fun videoSurfaceTypesPreferSurfaceViewInlineAndTextureViewFullscreen() {
-        assertEquals(VideoSurfaceKind.SurfaceView, inlineVideoSurfaceKind())
-        assertEquals(VideoSurfaceKind.TextureView, fullscreenVideoSurfaceKind())
-        assertEquals(AspectResizeMode.Fit, inlineVideoResizeMode())
-        assertEquals(true, fullscreenVideoUsesComposeSurface())
-    }
-
-    @Test
-    fun inlineVideoPlayerIsHiddenForFullscreenVideoUriOnly() {
-        val videoUri = FakeUri("videos/clip.mp4")
-
-        assertEquals(false, shouldRenderInlineVideoPlayer(videoUri, fullscreenVideoUri = null, activeInlineVideoUri = null))
-        assertEquals(false, shouldRenderInlineVideoPlayer(videoUri, fullscreenVideoUri = null, activeInlineVideoUri = videoUri))
-        assertEquals(false, shouldRenderInlineVideoPlayer(videoUri, fullscreenVideoUri = videoUri, activeInlineVideoUri = videoUri))
-        assertEquals(false, shouldRenderInlineVideoPlayer(videoUri, fullscreenVideoUri = null, activeInlineVideoUri = FakeUri("videos/other.mp4")))
     }
 
     @Test

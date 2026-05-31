@@ -33,8 +33,6 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
@@ -113,7 +111,6 @@ enum class Screen {
     FolderSelection,
     Gallery,
     PhotoDetail,
-    Review,
     Confirmation
 }
 
@@ -165,42 +162,11 @@ fun fullscreenVideoSurfaceSize(
     }
 }
 
-fun shouldRenderInlineVideoPlayer(@Suppress("UNUSED_PARAMETER") mediaUri: Uri, @Suppress("UNUSED_PARAMETER") fullscreenVideoUri: Uri?, @Suppress("UNUSED_PARAMETER") activeInlineVideoUri: Uri?): Boolean =
-    false
-
 fun shouldExitFullscreenForPlaybackState(playbackState: Int): Boolean =
     playbackState == Player.STATE_ENDED
 
 fun shouldShowFullscreenVideoLoading(playbackState: Int): Boolean =
     playbackState == Player.STATE_IDLE || playbackState == Player.STATE_BUFFERING
-
-fun videoControlsBottomInsetDp(widthDp: Int, controlsVisible: Boolean): Int =
-    when {
-        !controlsVisible -> 24
-        widthDp >= 600 -> 172
-        else -> 112
-    }
-
-enum class VideoSurfaceKind {
-    SurfaceView,
-    TextureView
-}
-
-enum class AspectResizeMode {
-    Fit
-}
-
-fun inlineVideoSurfaceKind(): VideoSurfaceKind =
-    VideoSurfaceKind.SurfaceView
-
-fun fullscreenVideoSurfaceKind(): VideoSurfaceKind =
-    VideoSurfaceKind.TextureView
-
-fun inlineVideoResizeMode(): AspectResizeMode =
-    AspectResizeMode.Fit
-
-fun fullscreenVideoUsesComposeSurface(): Boolean =
-    true
 
 data class VideoPlaybackSession(
     val activeUri: Uri? = null,
@@ -304,7 +270,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
 
     BackHandler(enabled = currentScreen != Screen.FolderSelection) {
         when (currentScreen) {
-            Screen.PhotoDetail, Screen.Confirmation, Screen.Review -> viewModel.handleBack()
+            Screen.PhotoDetail, Screen.Confirmation -> viewModel.handleBack()
             Screen.Gallery -> viewModel.requestReturnToFolderSelection()
             Screen.FolderSelection -> Unit
         }
@@ -521,7 +487,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                     strings = strings,
                     gridState = galleryGridState,
                     onPhotoClick = { uri -> viewModel.openPhoto(uri) },
-                    onFavoritePhotoClick = { uri -> viewModel.openLikedPhoto(uri) },
+                    onFavoritePhotoClick = { uri -> viewModel.openPhoto(uri) },
                     onLikeToggle = { uri -> viewModel.toggleLike(uri) }
                 )
                 Screen.PhotoDetail -> PhotoDetailScreen(
@@ -542,13 +508,6 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                     onRotate = { viewModel.rotateSelectedMedia() },
                     onLikeToggle = { uri -> viewModel.toggleLike(uri) },
                     onReviewClick = { viewModel.showFavoritesFromViewerOrWarn() }
-                )
-                Screen.Review -> ReviewScreen(
-                    likedPhotos = likedMediaItems,
-                    strings = strings,
-                    onBack = { viewModel.navigateTo(Screen.Gallery) },
-                    onPhotoClick = { uri -> viewModel.openLikedPhoto(uri) },
-                    onRemoveLike = { uri -> viewModel.toggleLike(uri) }
                 )
                 Screen.Confirmation -> ConfirmationScreen(
                     summary = exportSummary,
@@ -924,7 +883,11 @@ fun GalleryScreen(
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    items(visibleMedia, key = { it.uri }) { photo ->
+                    items(
+                        items = visibleMedia,
+                        key = { it.uri },
+                        contentType = { it.mediaType }
+                    ) { photo ->
                         PhotoItem(
                             media = photo,
                             isLiked = likedPhotoUris.contains(photo.uri),
@@ -1396,7 +1359,7 @@ fun VideoPoster(
 
 @Composable
 fun ZoomablePhoto(
-    photo: PhotoItemData,
+    photo: MediaItemData,
     rotationDegrees: Int,
     onSingleTap: () -> Unit,
     onDoubleTapOrTransform: () -> Unit
@@ -1689,7 +1652,7 @@ fun formatPlaybackTime(timeMs: Long): String {
 
 @Composable
 fun FullscreenTopBar(
-    photo: PhotoItemData,
+    photo: MediaItemData,
     currentIndex: Int,
     totalCount: Int,
     strings: LocalizedStrings,
@@ -2246,44 +2209,13 @@ fun PriceLine(
 }
 
 @Composable
-fun ReviewScreen(
-    likedPhotos: List<MediaItemData>,
-    strings: LocalizedStrings,
-    onBack: () -> Unit,
-    onPhotoClick: (Uri) -> Unit,
-    onRemoveLike: (Uri) -> Unit
-) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(16.dp)) {
-            Button(onClick = onBack) { Text(strings.backToGallery) }
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(strings.reviewLikedPhotos, style = MaterialTheme.typography.titleLarge)
-        }
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            contentPadding = PaddingValues(8.dp)
-        ) {
-            items(likedPhotos, key = { it.uri }) { photo ->
-                PhotoItem(
-                    media = photo,
-                    isLiked = true,
-                    strings = strings,
-                    onClick = { onPhotoClick(photo.uri) },
-                    onLikeToggle = { onRemoveLike(photo.uri) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
 fun ConfirmationScreen(
     summary: ExportSummary,
     exportStatus: ExportStatus,
     photoOriginalPrice: Int = summary.selectedJpgCount * 300,
-    photoPayablePrice: Int = confirmationDefaultPayablePrice(summary.selectedJpgCount, unitPrice = 300),
+    photoPayablePrice: Int = discountedPayablePrice(summary.selectedJpgCount, unitPrice = 300),
     videoOriginalPrice: Int = summary.selectedVideoCount * 1000,
-    videoPayablePrice: Int = confirmationDefaultPayablePrice(summary.selectedVideoCount, unitPrice = 1000),
+    videoPayablePrice: Int = discountedPayablePrice(summary.selectedVideoCount, unitPrice = 1000),
     totalDiscount: Int = (photoOriginalPrice + videoOriginalPrice) - (photoPayablePrice + videoPayablePrice),
     totalPayablePrice: Int = photoPayablePrice + videoPayablePrice,
     strings: LocalizedStrings,
@@ -2460,99 +2392,61 @@ private fun CopyProgressPanel(
             exportStatus.progressFraction?.let { progress ->
                 LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
             } ?: LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            if (exportStatus.files.isNotEmpty()) {
-                ExportFileProgressList(exportStatus = exportStatus)
+            exportStatus.currentFileName?.let { fileName ->
+                CurrentFileProgress(
+                    fileName = fileName,
+                    progress = exportStatus.currentFileProgressFraction
+                )
             }
         }
     }
 }
 
-private fun confirmationDefaultPayablePrice(count: Int, unitPrice: Int): Int {
-    val billableCount = count.coerceAtMost(10)
-    val subtotal = billableCount * unitPrice
-    val discountPercent = when {
-        billableCount >= 10 -> 35
-        billableCount >= 9 -> 30
-        billableCount >= 8 -> 25
-        billableCount >= 7 -> 20
-        billableCount >= 6 -> 15
-        billableCount >= 5 -> 10
-        billableCount >= 4 -> 5
-        else -> 0
-    }
-    return subtotal * (100 - discountPercent) / 100
-}
-
 @Composable
-private fun ExportFileProgressList(exportStatus: ExportStatus.Copying) {
+private fun CurrentFileProgress(
+    fileName: String,
+    progress: Float?
+) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.56f),
         shape = RoundedCornerShape(8.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(max = 180.dp)
+        modifier = Modifier.fillMaxWidth()
     ) {
-        LazyColumn(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            itemsIndexed(exportStatus.files) { index, file ->
-                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "${index + 1}.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.70f),
-                            modifier = Modifier.width(30.dp)
-                        )
-                        Text(
-                            text = file.fileName,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(
-                            text = file.progressFraction?.let { formatPercent(it) } ?: exportFileStateLabel(file.state),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = exportFileStateColor(file.state)
-                        )
-                    }
-                    file.progressFraction?.let { progress ->
-                        LinearProgressIndicator(
-                            progress = { progress },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    } ?: LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = fileName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = progress?.let { formatPercent(it) } ?: "-",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
+            progress?.let { value ->
+                LinearProgressIndicator(
+                    progress = { value },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } ?: LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
     }
 }
 
 private fun formatPercent(progress: Float): String =
     "${(progress.coerceIn(0f, 1f) * 100).roundToInt()}%"
-
-@Composable
-private fun exportFileStateLabel(state: ExportFileState): String =
-    when (state) {
-        ExportFileState.Copied -> "OK"
-        ExportFileState.Copying -> "..."
-        ExportFileState.Pending -> "-"
-    }
-
-@Composable
-private fun exportFileStateColor(state: ExportFileState): Color =
-    when (state) {
-        ExportFileState.Copied -> Color(0xFF2E7D32)
-        ExportFileState.Copying -> MaterialTheme.colorScheme.primary
-        ExportFileState.Pending -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.50f)
-    }
 
 @Composable
 fun BottomPriceBar(
