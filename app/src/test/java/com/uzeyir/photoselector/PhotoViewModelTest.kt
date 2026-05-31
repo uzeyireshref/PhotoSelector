@@ -563,6 +563,70 @@ class PhotoViewModelTest {
     }
 
     @Test
+    fun selectedTransferFilesIncludesRawFilesByDefault() {
+        val viewModel = PhotoViewModel()
+        val media = listOf(
+            testPhoto("IMG_0001.JPG"),
+            testVideo("clip.mp4")
+        )
+        viewModel.setMediaItems(media)
+        viewModel.setFolderDocuments(
+            listOf(
+                testDocument("IMG_0001.CR3"),
+                testDocument("IMG_0002.CR3")
+            )
+        )
+        media.forEach { viewModel.toggleLike(it.uri) }
+
+        val files = viewModel.selectedTransferFiles(includeRawFiles = true)
+
+        assertEquals(listOf("clip.mp4", "IMG_0001.JPG", "IMG_0001.CR3"), files.map { it.displayName })
+    }
+
+    @Test
+    fun selectedTransferFilesCanExcludeRawFiles() {
+        val viewModel = PhotoViewModel()
+        val photo = testPhoto("IMG_0001.JPG")
+        viewModel.setMediaItems(listOf(photo))
+        viewModel.setFolderDocuments(listOf(testDocument("IMG_0001.CR3")))
+        viewModel.toggleLike(photo.uri)
+
+        val files = viewModel.selectedTransferFiles(includeRawFiles = false)
+
+        assertEquals(listOf("IMG_0001.JPG"), files.map { it.displayName })
+    }
+
+    @Test
+    fun returnAfterExportCanTargetHomeOrGallery() {
+        val viewModel = PhotoViewModel()
+        viewModel.setPhotos(testPhotos(1))
+        viewModel.navigateTo(Screen.Confirmation)
+
+        viewModel.returnToGalleryAfterExport()
+        assertEquals(Screen.Gallery, viewModel.currentScreen)
+
+        viewModel.returnHomeAfterExport()
+        assertEquals(Screen.FolderSelection, viewModel.currentScreen)
+    }
+
+    @Test
+    fun whatsAppDocumentShareRequestUsesDocumentMimeAndAllUris() {
+        val files = listOf(
+            testDocument("IMG_0001.JPG", mimeType = "image/jpeg"),
+            testDocument("IMG_0001.CR3")
+        )
+
+        val request = whatsAppDocumentShareRequest(files)
+
+        assertEquals("application/octet-stream", request.mimeType)
+        assertEquals("com.whatsapp", request.packageName)
+        assertEquals(
+            listOf(FakeUri("IMG_0001.JPG"), FakeUri("IMG_0001.CR3")),
+            request.uris
+        )
+    }
+
+    @Test
     fun matchingRawFilesAreCaseInsensitiveAndLimitedToSameBaseName() {
         val viewModel = PhotoViewModel()
         val photos = listOf(

@@ -263,6 +263,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
     }
     var updateStatus by remember { mutableStateOf<AppUpdateStatus>(AppUpdateStatus.Idle) }
     var language by remember { mutableStateOf(UiText.defaultLanguage) }
+    var includeRawFiles by remember { mutableStateOf(true) }
     val strings = UiText.strings(language)
     var sdCardOptions by remember { mutableStateOf<List<StorageVolume>>(emptyList()) }
     val galleryGridState = rememberLazyGridState()
@@ -437,7 +438,10 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                         videoOriginalPrice = viewModel.videoBasePrice,
                         videoPayablePrice = viewModel.videoDisplayPrice,
                         totalPayablePrice = viewModel.totalDisplayPrice,
-                        onReviewClick = { viewModel.goToConfirmationOrWarn() },
+                        onReviewClick = {
+                            includeRawFiles = true
+                            viewModel.goToConfirmationOrWarn()
+                        },
                         buttonText = strings.confirmSelection,
                         strings = strings
                     )
@@ -512,6 +516,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                 Screen.Confirmation -> ConfirmationScreen(
                     summary = exportSummary,
                     exportStatus = exportStatus,
+                    includeRawFiles = includeRawFiles,
                     photoOriginalPrice = viewModel.photoBasePrice,
                     photoPayablePrice = viewModel.photoDisplayPrice,
                     videoOriginalPrice = viewModel.videoBasePrice,
@@ -520,12 +525,29 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                     totalPayablePrice = viewModel.totalDisplayPrice,
                     strings = strings,
                     onBack = { viewModel.navigateTo(Screen.Gallery) },
-                    onConfirmExport = {
-                        coroutineScope.launch {
-                            viewModel.exportSelection(context.contentResolver)
+                    onIncludeRawFilesChange = { includeRawFiles = it },
+                    onShareWhatsApp = {
+                        val files = viewModel.selectedTransferFiles(includeRawFiles = includeRawFiles)
+                        if (files.isNotEmpty()) {
+                            runCatching {
+                                context.startActivity(whatsAppDocumentShareIntent(files))
+                            }.onFailure {
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar(strings.whatsAppShareFailed)
+                                }
+                            }
                         }
                     },
-                    onFinished = { viewModel.confirmReturnToFolderSelection() }
+                    onConfirmExport = {
+                        coroutineScope.launch {
+                            viewModel.exportSelection(
+                                contentResolver = context.contentResolver,
+                                includeRawFiles = includeRawFiles
+                            )
+                        }
+                    },
+                    onReturnHome = { viewModel.returnHomeAfterExport() },
+                    onReturnToGallery = { viewModel.returnToGalleryAfterExport() }
                 )
             }
         }
@@ -1198,6 +1220,7 @@ fun PhotoDetailScreen(
                 currentIndex = pagerState.currentPage,
                 totalCount = photos.size,
                 strings = strings,
+                isLiked = isLiked,
                 onRotate = if (currentPhoto.mediaType == MediaType.Photo) onRotate else null,
                 onVideoFullscreen = if (currentPhoto.mediaType == MediaType.Video) {
                     {
@@ -1207,6 +1230,7 @@ fun PhotoDetailScreen(
                 } else {
                     null
                 },
+                onLikeToggle = { onLikeToggle(currentPhoto.uri) },
                 onBack = onBack
             )
         }
@@ -1220,9 +1244,7 @@ fun PhotoDetailScreen(
                 videoOriginalPrice = videoOriginalPrice,
                 videoPayablePrice = videoPayablePrice,
                 totalPayablePrice = totalPayablePrice,
-                isLiked = isLiked,
                 strings = strings,
-                onLikeToggle = { onLikeToggle(currentPhoto.uri) },
                 onReviewClick = onReviewClick,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
@@ -1235,9 +1257,7 @@ fun PhotoDetailScreen(
                 videoOriginalPrice = videoOriginalPrice,
                 videoPayablePrice = videoPayablePrice,
                 totalPayablePrice = totalPayablePrice,
-                isLiked = isLiked,
                 strings = strings,
-                onLikeToggle = { onLikeToggle(currentPhoto.uri) },
                 onReviewClick = onReviewClick,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
@@ -1656,8 +1676,10 @@ fun FullscreenTopBar(
     currentIndex: Int,
     totalCount: Int,
     strings: LocalizedStrings,
+    isLiked: Boolean,
     onRotate: (() -> Unit)?,
     onVideoFullscreen: (() -> Unit)?,
+    onLikeToggle: () -> Unit,
     onBack: () -> Unit
 ) {
     Surface(
@@ -1697,6 +1719,13 @@ fun FullscreenTopBar(
                     Icon(Icons.Default.Fullscreen, contentDescription = strings.fullscreen, tint = Color.White)
                 }
             }
+            IconButton(onClick = onLikeToggle) {
+                Icon(
+                    imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = strings.like,
+                    tint = if (isLiked) Color(0xFFFF6B6B) else Color.White
+                )
+            }
         }
     }
 }
@@ -1710,9 +1739,7 @@ fun FullscreenBottomBar(
     videoOriginalPrice: Int,
     videoPayablePrice: Int,
     totalPayablePrice: Int,
-    isLiked: Boolean,
     strings: LocalizedStrings,
-    onLikeToggle: () -> Unit,
     onReviewClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1731,8 +1758,6 @@ fun FullscreenBottomBar(
                     videoPayablePrice = videoPayablePrice,
                     totalPayablePrice = totalPayablePrice,
                     strings = strings,
-                    isLiked = isLiked,
-                    onLikeToggle = onLikeToggle,
                     onReviewClick = onReviewClick
                 )
             } else {
@@ -1745,8 +1770,6 @@ fun FullscreenBottomBar(
                     videoPayablePrice = videoPayablePrice,
                     totalPayablePrice = totalPayablePrice,
                     strings = strings,
-                    isLiked = isLiked,
-                    onLikeToggle = onLikeToggle,
                     onReviewClick = onReviewClick
                 )
             }
@@ -1764,8 +1787,6 @@ private fun PhoneFullscreenBottomBarContent(
     videoPayablePrice: Int,
     totalPayablePrice: Int,
     strings: LocalizedStrings,
-    isLiked: Boolean,
-    onLikeToggle: () -> Unit,
     onReviewClick: () -> Unit
 ) {
     Row(
@@ -1789,25 +1810,8 @@ private fun PhoneFullscreenBottomBarContent(
             Text("${strings.total}: ${strings.price(totalPayablePrice)}", color = Color.White, style = MaterialTheme.typography.titleLarge)
         }
         Spacer(modifier = Modifier.width(14.dp))
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            FilledIconButton(
-                onClick = onLikeToggle,
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = if (isLiked) Color.White else Color.White.copy(alpha = 0.14f),
-                    contentColor = if (isLiked) Color.Red else Color.White
-                )
-            ) {
-                Icon(
-                    imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = strings.like
-                )
-            }
-            Button(onClick = onReviewClick) {
-                Text(strings.review)
-            }
+        Button(onClick = onReviewClick) {
+            Text(strings.review)
         }
     }
 }
@@ -1822,8 +1826,6 @@ private fun TabletFullscreenBottomBarContent(
     videoPayablePrice: Int,
     totalPayablePrice: Int,
     strings: LocalizedStrings,
-    isLiked: Boolean,
-    onLikeToggle: () -> Unit,
     onReviewClick: () -> Unit
 ) {
     Row(
@@ -1850,30 +1852,6 @@ private fun TabletFullscreenBottomBarContent(
             horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = strings.total,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = Color.White.copy(alpha = 0.68f)
-                )
-                Text(
-                    text = strings.price(totalPayablePrice),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = Color.White
-                )
-            }
-            FilledIconButton(
-                onClick = onLikeToggle,
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = if (isLiked) Color.White else Color.White.copy(alpha = 0.14f),
-                    contentColor = if (isLiked) Color.Red else Color.White
-                )
-            ) {
-                Icon(
-                    imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = strings.like
-                )
-            }
             Button(
                 onClick = onReviewClick,
                 shape = RoundedCornerShape(8.dp),
@@ -2052,9 +2030,7 @@ fun VideoCompactBottomBar(
     videoOriginalPrice: Int,
     videoPayablePrice: Int,
     totalPayablePrice: Int,
-    isLiked: Boolean,
     strings: LocalizedStrings,
-    onLikeToggle: () -> Unit,
     onReviewClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -2073,8 +2049,6 @@ fun VideoCompactBottomBar(
                     videoPayablePrice = videoPayablePrice,
                     totalPayablePrice = totalPayablePrice,
                     strings = strings,
-                    isLiked = isLiked,
-                    onLikeToggle = onLikeToggle,
                     onReviewClick = onReviewClick
                 )
             } else {
@@ -2096,18 +2070,6 @@ fun VideoCompactBottomBar(
                             text = strings.price(totalPayablePrice),
                             color = Color.White,
                             style = MaterialTheme.typography.titleMedium
-                        )
-                    }
-                    FilledIconButton(
-                        onClick = onLikeToggle,
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = if (isLiked) Color.White else Color.White.copy(alpha = 0.14f),
-                            contentColor = if (isLiked) Color.Red else Color.White
-                        )
-                    ) {
-                        Icon(
-                            imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = strings.like
                         )
                     }
                     Button(onClick = onReviewClick) {
@@ -2212,6 +2174,7 @@ fun PriceLine(
 fun ConfirmationScreen(
     summary: ExportSummary,
     exportStatus: ExportStatus,
+    includeRawFiles: Boolean,
     photoOriginalPrice: Int = summary.selectedJpgCount * 300,
     photoPayablePrice: Int = discountedPayablePrice(summary.selectedJpgCount, unitPrice = 300),
     videoOriginalPrice: Int = summary.selectedVideoCount * 1000,
@@ -2220,9 +2183,14 @@ fun ConfirmationScreen(
     totalPayablePrice: Int = photoPayablePrice + videoPayablePrice,
     strings: LocalizedStrings,
     onBack: () -> Unit,
+    onIncludeRawFilesChange: (Boolean) -> Unit,
+    onShareWhatsApp: () -> Unit,
     onConfirmExport: () -> Unit,
-    onFinished: () -> Unit
+    onReturnHome: () -> Unit,
+    onReturnToGallery: () -> Unit
 ) {
+    val rawFilesToTransfer = if (includeRawFiles) summary.matchedRawCount else 0
+    val totalTransferFiles = summary.selectedJpgCount + summary.selectedVideoCount + rawFilesToTransfer
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -2235,6 +2203,8 @@ fun ConfirmationScreen(
         Spacer(modifier = Modifier.height(20.dp))
         ConfirmationSummaryCard(
             summary = summary,
+            includeRawFiles = includeRawFiles,
+            totalTransferFiles = totalTransferFiles,
             totalDiscount = totalDiscount,
             totalPayablePrice = totalPayablePrice,
             strings = strings,
@@ -2244,15 +2214,46 @@ fun ConfirmationScreen(
 
         when (exportStatus) {
             ExportStatus.Idle -> {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = onBack) {
-                        Text(strings.back)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.widthIn(min = 320.dp, max = 560.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = includeRawFiles,
+                            onCheckedChange = onIncludeRawFilesChange,
+                            enabled = summary.matchedRawCount > 0
+                        )
+                        Text(
+                            text = strings.includeRawFiles,
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.clickable(
+                                enabled = summary.matchedRawCount > 0,
+                                onClick = { onIncludeRawFilesChange(!includeRawFiles) }
+                            )
+                        )
                     }
                     Button(
-                        onClick = onConfirmExport,
-                        enabled = summary.totalFileCount > 0
+                        onClick = onShareWhatsApp,
+                        enabled = totalTransferFiles > 0,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.widthIn(min = 320.dp, max = 420.dp)
                     ) {
-                        Text(strings.copyJpgAndRaw)
+                        Text(strings.whatsAppDocumentShare)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedButton(onClick = onBack) {
+                            Text(strings.back)
+                        }
+                        Button(
+                            onClick = onConfirmExport,
+                            enabled = totalTransferFiles > 0
+                        ) {
+                            Text(if (includeRawFiles) strings.copyJpgAndRaw else strings.copySelectedFiles)
+                        }
                     }
                 }
             }
@@ -2271,8 +2272,13 @@ fun ConfirmationScreen(
                 Text(strings.folderName(exportStatus.folderName), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(strings.copiedFileCount(exportStatus.copiedFiles))
                 Spacer(modifier = Modifier.height(20.dp))
-                Button(onClick = onFinished) {
-                    Text(strings.returnHome)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(onClick = onReturnHome) {
+                        Text(strings.returnHome)
+                    }
+                    Button(onClick = onReturnToGallery) {
+                        Text(strings.returnToGallery)
+                    }
                 }
             }
 
@@ -2297,6 +2303,8 @@ fun ConfirmationScreen(
 @Composable
 private fun ConfirmationSummaryCard(
     summary: ExportSummary,
+    includeRawFiles: Boolean,
+    totalTransferFiles: Int,
     totalDiscount: Int,
     totalPayablePrice: Int,
     strings: LocalizedStrings,
@@ -2314,7 +2322,8 @@ private fun ConfirmationSummaryCard(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             SummaryRow("${strings.photoShort}: ${summary.selectedJpgCount}", "${strings.matchingRaw}: ${summary.matchedRawCount}")
-            SummaryRow("${strings.videoShort}: ${summary.selectedVideoCount}", strings.filesToCopyCount(summary.totalFileCount))
+            SummaryRow(strings.includeRawFiles, strings.yesNo(includeRawFiles))
+            SummaryRow("${strings.videoShort}: ${summary.selectedVideoCount}", strings.filesToCopyCount(totalTransferFiles))
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
             if (totalDiscount > 0) {
                 Text(

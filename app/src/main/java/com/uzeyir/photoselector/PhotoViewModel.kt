@@ -464,7 +464,7 @@ class PhotoViewModel : ViewModel() {
         likedMediaItemCache.addAll(photos.filter { likedPhotoUriMembership.containsKey(it.uri) })
     }
 
-    suspend fun exportSelection(contentResolver: ContentResolver): ExportStatus {
+    suspend fun exportSelection(contentResolver: ContentResolver, includeRawFiles: Boolean = true): ExportStatus {
         if (!shouldBeginExport(exportStatus)) {
             return exportStatus
         }
@@ -488,6 +488,7 @@ class PhotoViewModel : ViewModel() {
                     treeUri = treeUri,
                     folderName = folderName,
                     selectedMedia = selectedMedia,
+                    includeRawFiles = includeRawFiles,
                     onProgress = { status ->
                         runBlocking(Dispatchers.Main.immediate) {
                             exportStatus = status
@@ -507,6 +508,22 @@ class PhotoViewModel : ViewModel() {
 
     fun clearExportStatus() {
         exportStatus = ExportStatus.Idle
+    }
+
+    fun selectedTransferFiles(includeRawFiles: Boolean = true): List<FolderDocumentData> =
+        selectedTransferFiles(
+            selectedMedia = likedMediaItems,
+            includeRawFiles = includeRawFiles,
+            matchingRawFiles = ::matchingRawFilesFor
+        )
+
+    fun returnHomeAfterExport() {
+        reset()
+    }
+
+    fun returnToGalleryAfterExport() {
+        exportStatus = ExportStatus.Idle
+        currentScreen = Screen.Gallery
     }
 
     suspend fun loadPhotosFromFolder(treeUri: Uri, contentResolver: ContentResolver) {
@@ -589,6 +606,7 @@ class PhotoViewModel : ViewModel() {
         treeUri: Uri,
         folderName: String,
         selectedMedia: List<MediaItemData>,
+        includeRawFiles: Boolean,
         onProgress: (ExportStatus.Copying) -> Unit
     ): ExportStatus {
         val parentDocumentUri = DocumentsContract.buildDocumentUriUsingTree(
@@ -597,12 +615,11 @@ class PhotoViewModel : ViewModel() {
         )
         val (exportFolderUri, actualFolderName) = createExportFolder(contentResolver, parentDocumentUri, folderName)
 
-        val filesToCopy = selectedMedia.flatMap { media ->
-            when (media.mediaType) {
-                MediaType.Photo -> listOf(media.toFolderDocumentData()) + matchingRawFilesFor(media)
-                MediaType.Video -> listOf(media.toFolderDocumentData())
-            }
-        }
+        val filesToCopy = selectedTransferFiles(
+            selectedMedia = selectedMedia,
+            includeRawFiles = includeRawFiles,
+            matchingRawFiles = ::matchingRawFilesFor
+        )
         val totalBytes = filesToCopy
             .map { it.sizeBytes }
             .takeIf { sizes -> sizes.all { it != null } }
@@ -712,17 +729,6 @@ class PhotoViewModel : ViewModel() {
         }
         localizedError(UiMessage.CouldNotCreateExportFolder)
     }
-
-    private fun MediaItemData.toFolderDocumentData(): FolderDocumentData =
-        FolderDocumentData(
-            uri = uri,
-            displayName = displayName,
-            lastModified = lastModified,
-            sizeBytes = sizeBytes,
-            mimeType = mimeType.ifBlank {
-                if (mediaType == MediaType.Photo) "image/jpeg" else "application/octet-stream"
-            }
-        )
 
     private fun copyDocument(
         contentResolver: ContentResolver,
@@ -836,6 +842,32 @@ internal fun shouldBeginExport(exportStatus: ExportStatus): Boolean =
 
 internal fun exportProgressCountLabel(status: ExportStatus.Copying): String? =
     if (status.totalFiles > 0) "${status.copiedFiles.coerceIn(0, status.totalFiles)}/${status.totalFiles}" else null
+
+internal fun selectedTransferFiles(
+    selectedMedia: List<MediaItemData>,
+    includeRawFiles: Boolean,
+    matchingRawFiles: (MediaItemData) -> List<FolderDocumentData>
+): List<FolderDocumentData> =
+    selectedMedia.flatMap { media ->
+        when (media.mediaType) {
+            MediaType.Photo -> {
+                val jpg = media.toFolderDocumentDataForTransfer()
+                if (includeRawFiles) listOf(jpg) + matchingRawFiles(media) else listOf(jpg)
+            }
+            MediaType.Video -> listOf(media.toFolderDocumentDataForTransfer())
+        }
+    }
+
+private fun MediaItemData.toFolderDocumentDataForTransfer(): FolderDocumentData =
+    FolderDocumentData(
+        uri = uri,
+        displayName = displayName,
+        lastModified = lastModified,
+        sizeBytes = sizeBytes,
+        mimeType = mimeType.ifBlank {
+            if (mediaType == MediaType.Photo) "image/jpeg" else "application/octet-stream"
+        }
+    )
 
 internal fun cleanupCreatedExportDocuments(
     createdFileUris: List<Uri>,

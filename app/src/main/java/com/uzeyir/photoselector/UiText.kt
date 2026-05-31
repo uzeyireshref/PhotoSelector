@@ -43,6 +43,8 @@ data class LocalizedStrings(
     val priceBreakdown: String,
     val selected: String,
     val total: String,
+    val yes: String,
+    val no: String,
     val discount: String,
     val filesToCopy: String,
     val fileUnit: String,
@@ -55,6 +57,11 @@ data class LocalizedStrings(
     val selectedVideo: String,
     val totalFiles: String,
     val copyJpgAndRaw: String,
+    val copySelectedFiles: String,
+    val includeRawFiles: String,
+    val whatsAppDocumentShare: String,
+    val whatsAppShareFailed: String,
+    val returnToGallery: String,
     val exportComplete: String,
     val folder: String,
     val copiedFiles: String,
@@ -93,6 +100,7 @@ data class LocalizedStrings(
     fun selectedVideoCount(count: Int): String = "$selectedVideo: $count"
     fun totalFileCount(count: Int): String = "$totalFiles: $count"
     fun filesToCopyCount(count: Int): String = "$filesToCopy: $count $fileUnit"
+    fun yesNo(value: Boolean): String = if (value) yes else no
     fun folderName(name: String): String = "$folder: $name"
     fun copiedFileCount(count: Int): String = "$copiedFiles: $count"
     fun updateAvailable(versionName: String): String = updateAvailableText(versionName)
@@ -149,6 +157,8 @@ internal object UiText {
         priceBreakdown = "Fiyat",
         selected = "Seçilen",
         total = "Toplam",
+        yes = "Evet",
+        no = "Hayır",
         discount = "İndirim",
         filesToCopy = "Kopyalanacak",
         fileUnit = "dosya",
@@ -161,6 +171,11 @@ internal object UiText {
         selectedVideo = "Seçilen video",
         totalFiles = "Toplam dosya",
         copyJpgAndRaw = "JPG + RAW Kopyala",
+        copySelectedFiles = "Seçilenleri Kopyala",
+        includeRawFiles = "RAW dosyalarını dahil et",
+        whatsAppDocumentShare = "WhatsApp belge olarak gönder",
+        whatsAppShareFailed = "WhatsApp açılamadı.",
+        returnToGallery = "Galeriye dön",
         exportComplete = "Dışa aktarma tamamlandı",
         folder = "Klasör",
         copiedFiles = "Kopyalanan dosya",
@@ -216,6 +231,8 @@ internal object UiText {
         priceBreakdown = "Price",
         selected = "Selected",
         total = "Total",
+        yes = "Yes",
+        no = "No",
         discount = "Discount",
         filesToCopy = "To copy",
         fileUnit = "files",
@@ -228,6 +245,11 @@ internal object UiText {
         selectedVideo = "Selected video",
         totalFiles = "Total files",
         copyJpgAndRaw = "Copy JPG + RAW",
+        copySelectedFiles = "Copy selected files",
+        includeRawFiles = "Include RAW files",
+        whatsAppDocumentShare = "Send as WhatsApp document",
+        whatsAppShareFailed = "Could not open WhatsApp.",
+        returnToGallery = "Return to gallery",
         exportComplete = "Export complete",
         folder = "Folder",
         copiedFiles = "Copied files",
