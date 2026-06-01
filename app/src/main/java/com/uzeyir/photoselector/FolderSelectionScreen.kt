@@ -43,14 +43,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.uzeyir.photoselector.ui.theme.StudioGreen
-import com.uzeyir.photoselector.ui.theme.StudioDarkBackground
-import com.uzeyir.photoselector.ui.theme.StudioInk
-import com.uzeyir.photoselector.ui.theme.StudioPaper
-import com.uzeyir.photoselector.ui.theme.StudioSage
-import com.uzeyir.photoselector.ui.theme.StudioSuccess
-import com.uzeyir.photoselector.ui.theme.StudioSurface
-import com.uzeyir.photoselector.ui.theme.StudioWarmAccent
+import com.uzeyir.photoselector.ui.theme.TaksimPrimaryRed
+import com.uzeyir.photoselector.ui.theme.TaksimDarkBackground
+import com.uzeyir.photoselector.ui.theme.TaksimTextDark
+import com.uzeyir.photoselector.ui.theme.TaksimLightBackground
+import com.uzeyir.photoselector.ui.theme.TaksimBurgundy
+import com.uzeyir.photoselector.ui.theme.TaksimSuccess
+import com.uzeyir.photoselector.ui.theme.TaksimSurfaceLight
+import com.uzeyir.photoselector.ui.theme.TaksimWarmAccent
 
 @Composable
 fun FolderSelectionScreen(
@@ -78,9 +78,9 @@ fun FolderSelectionScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        StudioDarkBackground,
-                        StudioGreen,
-                        StudioPaper
+                        TaksimDarkBackground,
+                        TaksimPrimaryRed,
+                        TaksimLightBackground
                     )
                 )
             )
@@ -137,7 +137,7 @@ private fun StartScreenPanel(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = StudioSurface.copy(alpha = 0.96f),
+        color = TaksimSurfaceLight.copy(alpha = 0.96f),
         tonalElevation = 2.dp,
         shadowElevation = 12.dp,
         shape = RoundedCornerShape(8.dp)
@@ -151,13 +151,13 @@ private fun StartScreenPanel(
             Text(
                 text = title,
                 style = MaterialTheme.typography.headlineSmall,
-                color = StudioInk
+                color = TaksimTextDark
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodyMedium,
-                color = StudioSage,
+                color = TaksimBurgundy,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(24.dp))
@@ -166,7 +166,7 @@ private fun StartScreenPanel(
                 enabled = !isLoadingMedia,
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = StudioGreen,
+                    containerColor = TaksimPrimaryRed,
                     contentColor = Color.White
                 ),
                 modifier = Modifier
@@ -183,7 +183,7 @@ private fun StartScreenPanel(
                 enabled = !isLoadingMedia,
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = StudioGreen
+                    contentColor = TaksimPrimaryRed
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -197,7 +197,7 @@ private fun StartScreenPanel(
             Text(
                 text = storageHint,
                 style = MaterialTheme.typography.labelMedium,
-                color = StudioSage
+                color = TaksimBurgundy
             )
             Spacer(modifier = Modifier.height(22.dp))
             if (isLoadingMedia) {
@@ -218,7 +218,7 @@ private fun StartScreenPanel(
 private fun StartScreenMark() {
     Surface(
         modifier = Modifier.size(72.dp),
-        color = StudioGreen,
+        color = TaksimPrimaryRed,
         shape = CircleShape,
         shadowElevation = 4.dp
     ) {
@@ -231,7 +231,7 @@ private fun StartScreenMark() {
             Icon(
                 imageVector = Icons.Default.PhotoLibrary,
                 contentDescription = null,
-                tint = StudioWarmAccent,
+                tint = TaksimWarmAccent,
                 modifier = Modifier.size(34.dp)
             )
         }
@@ -275,7 +275,7 @@ fun UpdateCheckButton(
     val label = updateStatus.label(strings)
     val colors = if (isUpToDate) {
         ButtonDefaults.buttonColors(
-            containerColor = StudioSuccess,
+            containerColor = TaksimSuccess,
             contentColor = Color.White
         )
     } else {
@@ -302,3 +302,4 @@ fun UpdateCheckButton(
         Text(label)
     }
 }
+

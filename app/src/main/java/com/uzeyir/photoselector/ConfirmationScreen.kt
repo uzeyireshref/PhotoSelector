@@ -28,7 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.uzeyir.photoselector.ui.theme.StudioSuccess
+import com.uzeyir.photoselector.ui.theme.TaksimSuccess
 import kotlin.math.roundToInt
 
 @Composable
@@ -128,7 +128,7 @@ fun ConfirmationScreen(
             }
 
             is ExportStatus.Success -> {
-                Text(strings.exportComplete, color = StudioSuccess, style = MaterialTheme.typography.titleLarge)
+                Text(strings.exportComplete, color = TaksimSuccess, style = MaterialTheme.typography.titleLarge)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(strings.folderName(exportStatus.folderName), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(strings.copiedFileCount(exportStatus.copiedFiles))
@@ -190,7 +190,7 @@ private fun ConfirmationSummaryCard(
                 Text(
                     text = "${strings.discount}: ${strings.price(totalDiscount)}",
                     style = MaterialTheme.typography.titleMedium,
-                    color = StudioSuccess,
+                    color = TaksimSuccess,
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -317,3 +317,4 @@ private fun CurrentFileProgress(
 
 private fun formatPercent(progress: Float): String =
     "${(progress.coerceIn(0f, 1f) * 100).roundToInt()}%"
+

@@ -21,7 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.uzeyir.photoselector.ui.theme.StudioSuccess
+import com.uzeyir.photoselector.ui.theme.TaksimSuccess
 
 @Composable
 fun BottomPriceBar(
@@ -184,7 +184,7 @@ internal fun CompactPriceSummary(
     colors: PriceSummaryColors = PriceSummaryColors(
         selected = MaterialTheme.colorScheme.onSurface,
         supporting = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.64f),
-        discount = StudioSuccess,
+        discount = TaksimSuccess,
         totalLabel = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.64f),
         totalPrice = MaterialTheme.colorScheme.primary
     ),
@@ -237,3 +237,4 @@ internal fun CompactPriceSummary(
         }
     }
 }
+

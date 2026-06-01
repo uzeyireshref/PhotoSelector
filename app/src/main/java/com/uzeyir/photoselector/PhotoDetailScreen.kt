@@ -28,7 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.uzeyir.photoselector.ui.theme.StudioDarkSurface
+import com.uzeyir.photoselector.ui.theme.TaksimSurfaceDark
 import kotlinx.coroutines.launch
 
 @Composable
@@ -143,7 +143,7 @@ fun PhotoDetailScreen(
                         .align(Alignment.CenterStart)
                         .padding(start = 18.dp),
                     colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = StudioDarkSurface.copy(alpha = 0.72f),
+                        containerColor = TaksimSurfaceDark.copy(alpha = 0.72f),
                         contentColor = Color.White
                     )
                 ) {
@@ -161,7 +161,7 @@ fun PhotoDetailScreen(
                         .align(Alignment.CenterEnd)
                         .padding(end = 18.dp),
                     colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = StudioDarkSurface.copy(alpha = 0.72f),
+                        containerColor = TaksimSurfaceDark.copy(alpha = 0.72f),
                         contentColor = Color.White
                     )
                 ) {
@@ -232,3 +232,4 @@ fun PhotoDetailScreen(
         }
     }
 }
+

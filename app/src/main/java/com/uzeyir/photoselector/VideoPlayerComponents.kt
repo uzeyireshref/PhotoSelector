@@ -49,8 +49,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import com.uzeyir.photoselector.ui.theme.StudioDarkSurface
-import com.uzeyir.photoselector.ui.theme.StudioDarkSurfaceVariant
+import com.uzeyir.photoselector.ui.theme.TaksimSurfaceDark
+import com.uzeyir.photoselector.ui.theme.TaksimBurgundy
 import androidx.media3.common.MediaItem as PlayerMediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
@@ -149,7 +149,7 @@ fun VideoPoster(
             onClick = onPlay,
             modifier = Modifier.size(84.dp),
             colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = StudioDarkSurface.copy(alpha = 0.74f),
+                containerColor = TaksimSurfaceDark.copy(alpha = 0.74f),
                 contentColor = Color.White
             )
         ) {
@@ -246,7 +246,7 @@ fun VideoFullscreenPlayer(
 
         if (shouldShowFullscreenVideoLoading(playbackState)) {
             Surface(
-                color = StudioDarkSurface.copy(alpha = 0.76f),
+                color = TaksimSurfaceDark.copy(alpha = 0.76f),
                 shape = CircleShape,
                 modifier = Modifier.size(72.dp)
             ) {
@@ -267,7 +267,7 @@ fun VideoFullscreenPlayer(
                 .statusBarsPadding()
                 .padding(top = 12.dp, end = 16.dp),
             colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = StudioDarkSurface.copy(alpha = 0.74f),
+                containerColor = TaksimSurfaceDark.copy(alpha = 0.74f),
                 contentColor = Color.White
             )
         ) {
@@ -308,7 +308,7 @@ fun VideoPlaybackControls(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        color = StudioDarkSurfaceVariant.copy(alpha = 0.82f),
+        color = TaksimBurgundy.copy(alpha = 0.82f),
         shape = RoundedCornerShape(8.dp),
         modifier = modifier.fillMaxWidth()
     ) {
@@ -352,3 +352,4 @@ fun formatPlaybackTime(timeMs: Long): String {
     val seconds = totalSeconds % 60
     return "%d:%02d".format(minutes, seconds)
 }
+

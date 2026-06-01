@@ -58,9 +58,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.uzeyir.photoselector.ui.theme.StudioDarkBackground
-import com.uzeyir.photoselector.ui.theme.StudioDarkSurface
-import com.uzeyir.photoselector.ui.theme.StudioFavorite
+import com.uzeyir.photoselector.ui.theme.TaksimDarkBackground
+import com.uzeyir.photoselector.ui.theme.TaksimSurfaceDark
+import com.uzeyir.photoselector.ui.theme.TaksimError
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -302,7 +302,7 @@ fun PhotoItem(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(StudioDarkBackground),
+                        .background(TaksimDarkBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     AsyncImage(
@@ -372,14 +372,15 @@ fun PhotoItem(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(6.dp)
-                    .background(StudioDarkSurface.copy(alpha = 0.64f), CircleShape)
+                    .background(TaksimSurfaceDark.copy(alpha = 0.64f), CircleShape)
             ) {
                 Icon(
                     imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     contentDescription = strings.like,
-                    tint = if (isLiked) StudioFavorite else Color.White
+                    tint = if (isLiked) TaksimError else Color.White
                 )
             }
         }
     }
 }
+

@@ -35,11 +35,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.uzeyir.photoselector.ui.theme.StudioDarkSurface
-import com.uzeyir.photoselector.ui.theme.StudioDarkSurfaceVariant
-import com.uzeyir.photoselector.ui.theme.StudioFavoriteOnDark
-import com.uzeyir.photoselector.ui.theme.StudioSuccess
-import com.uzeyir.photoselector.ui.theme.StudioSuccessOnDark
+import com.uzeyir.photoselector.ui.theme.TaksimSurfaceDark
+import com.uzeyir.photoselector.ui.theme.TaksimBurgundy
+import com.uzeyir.photoselector.ui.theme.TaksimError
+import com.uzeyir.photoselector.ui.theme.TaksimSuccess
+import com.uzeyir.photoselector.ui.theme.TaksimSuccess
 
 @Composable
 fun FullscreenTopBar(
@@ -52,7 +52,7 @@ fun FullscreenTopBar(
     onBack: () -> Unit
 ) {
     Surface(
-        color = StudioDarkSurface.copy(alpha = 0.78f),
+        color = TaksimSurfaceDark.copy(alpha = 0.78f),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -108,7 +108,7 @@ fun FullscreenBottomBar(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        color = StudioDarkSurface.copy(alpha = 0.82f),
+        color = TaksimSurfaceDark.copy(alpha = 0.82f),
         modifier = modifier.fillMaxWidth()
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
@@ -175,7 +175,7 @@ private fun PhoneFullscreenBottomBarContent(
             Text("${strings.selected}: ${photoCount + videoCount}", color = Color.White, style = MaterialTheme.typography.titleMedium)
             Text("${strings.photoShort}: $photoCount   ${strings.videoShort}: $videoCount", color = Color.White.copy(alpha = 0.72f))
             if (discount > 0) {
-                Text("${strings.discount}: ${strings.price(discount)}", color = StudioSuccessOnDark, style = MaterialTheme.typography.bodyMedium)
+                Text("${strings.discount}: ${strings.price(discount)}", color = TaksimSuccess, style = MaterialTheme.typography.bodyMedium)
             }
             Text("${strings.total}: ${strings.price(totalPayablePrice)}", color = Color.White, style = MaterialTheme.typography.titleLarge)
         }
@@ -219,7 +219,7 @@ private fun TabletFullscreenBottomBarContent(
             colors = PriceSummaryColors(
                 selected = Color.White,
                 supporting = Color.White.copy(alpha = 0.74f),
-                discount = StudioSuccessOnDark,
+                discount = TaksimSuccess,
                 totalLabel = Color.White.copy(alpha = 0.72f),
                 totalPrice = Color.White
             ),
@@ -255,7 +255,7 @@ private fun FullscreenLikeButton(
         modifier = Modifier.size(58.dp),
         colors = IconButtonDefaults.filledIconButtonColors(
             containerColor = Color.White.copy(alpha = 0.16f),
-            contentColor = if (isLiked) StudioFavoriteOnDark else Color.White
+            contentColor = if (isLiked) TaksimError else Color.White
         )
     ) {
         Icon(
@@ -282,7 +282,7 @@ fun VideoCompactBottomBar(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        color = StudioDarkSurfaceVariant.copy(alpha = 0.84f),
+        color = TaksimBurgundy.copy(alpha = 0.84f),
         modifier = modifier.fillMaxWidth()
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
@@ -342,7 +342,7 @@ fun SelectionPriceSummary(
     totalPayablePrice: Int,
     strings: LocalizedStrings,
     textColor: Color = LocalContentColor.current,
-    discountedColor: Color = StudioSuccess,
+    discountedColor: Color = TaksimSuccess,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -419,3 +419,4 @@ fun PriceLine(
         }
     }
 }
+
