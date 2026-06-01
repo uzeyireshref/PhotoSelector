@@ -67,7 +67,10 @@ class PhotoViewModel(
         get() = likedPhotoUriMembership.keys
 
     val viewerPhotos: List<MediaItemData>
-        get() = photos
+        get() = when (viewerSource) {
+            PhotoViewerSource.Gallery -> photos
+            PhotoViewerSource.Favorites -> likedMediaItems
+        }
 
     val selectedPhoto: MediaItemData?
         get() = viewerPhotos.getOrNull(selectedPhotoIndex)
@@ -267,6 +270,11 @@ class PhotoViewModel(
     fun openPhoto(uri: Uri) {
         viewerSource = PhotoViewerSource.Gallery
         openPhotoAt(photos.indexOfFirst { it.uri == uri })
+    }
+
+    fun openFavoritePhoto(uri: Uri) {
+        viewerSource = PhotoViewerSource.Favorites
+        openPhotoAt(likedMediaItems.indexOfFirst { it.uri == uri })
     }
 
     fun openPhotoAt(index: Int) {

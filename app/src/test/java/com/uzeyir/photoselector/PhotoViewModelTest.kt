@@ -189,6 +189,24 @@ class PhotoViewModelTest {
     }
 
     @Test
+    fun openingPhotoFromFavoritesLimitsViewerToFavoriteMedia() {
+        val viewModel = PhotoViewModel()
+        val favoritePhoto = testPhoto("favorite.jpg")
+        val otherPhoto = testPhoto("other.jpg")
+        val favoriteVideo = testVideo("favorite-video.mp4")
+        viewModel.setMediaItems(listOf(favoritePhoto, otherPhoto, favoriteVideo))
+        viewModel.toggleLike(favoritePhoto.uri)
+        viewModel.toggleLike(favoriteVideo.uri)
+
+        viewModel.openFavoritePhoto(favoriteVideo.uri)
+
+        assertEquals(Screen.PhotoDetail, viewModel.currentScreen)
+        assertEquals(listOf(favoriteVideo, favoritePhoto), viewModel.viewerPhotos)
+        assertEquals(0, viewModel.selectedPhotoIndex)
+        assertEquals(favoriteVideo.uri, viewModel.selectedPhotoUri)
+    }
+
+    @Test
     fun galleryTabCanBeSelectedFromViewModel() {
         val viewModel = PhotoViewModel()
 

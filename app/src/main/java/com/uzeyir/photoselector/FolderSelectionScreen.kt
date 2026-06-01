@@ -44,12 +44,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.uzeyir.photoselector.ui.theme.StudioGreen
+import com.uzeyir.photoselector.ui.theme.StudioDarkBackground
 import com.uzeyir.photoselector.ui.theme.StudioInk
 import com.uzeyir.photoselector.ui.theme.StudioPaper
 import com.uzeyir.photoselector.ui.theme.StudioSage
 import com.uzeyir.photoselector.ui.theme.StudioSuccess
 import com.uzeyir.photoselector.ui.theme.StudioSurface
-import com.uzeyir.photoselector.ui.theme.StudioSurfaceVariant
 import com.uzeyir.photoselector.ui.theme.StudioWarmAccent
 
 @Composable
@@ -78,8 +78,8 @@ fun FolderSelectionScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        StudioSurface,
-                        StudioSurfaceVariant,
+                        StudioDarkBackground,
+                        StudioGreen,
                         StudioPaper
                     )
                 )
@@ -137,9 +137,9 @@ private fun StartScreenPanel(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = StudioSurface.copy(alpha = 0.92f),
+        color = StudioSurface.copy(alpha = 0.96f),
         tonalElevation = 2.dp,
-        shadowElevation = 8.dp,
+        shadowElevation = 12.dp,
         shape = RoundedCornerShape(8.dp)
     ) {
         Column(
@@ -225,7 +225,7 @@ private fun StartScreenMark() {
         Box(contentAlignment = Alignment.Center) {
             Surface(
                 modifier = Modifier.size(44.dp),
-                color = Color.White.copy(alpha = 0.16f),
+                color = Color.White.copy(alpha = 0.18f),
                 shape = RoundedCornerShape(8.dp)
             ) {}
             Icon(

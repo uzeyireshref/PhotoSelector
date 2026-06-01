@@ -103,7 +103,7 @@ class ExportCopyingTest {
     }
 
     @Test
-    fun exportFolderTimestampUsesYearMonthDayHourMinuteSecondFormat() {
+    fun exportFolderTimestampUsesHourMinuteSecondThenYearMonthDayFormat() {
         val calendar = Calendar.getInstance().apply {
             clear()
             set(2026, Calendar.MAY, 29, 19, 26, 0)
@@ -111,7 +111,7 @@ class ExportCopyingTest {
 
         val timestamp = formatExportFolderTimestamp(calendar.time)
 
-        assertEquals("2026-05-29_19-26-00", timestamp)
+        assertEquals("19-26-00_2026-05-29", timestamp)
     }
 
     @Test
@@ -123,7 +123,7 @@ class ExportCopyingTest {
 
         val folderName = exportFolderName(calendar.time)
 
-        assertEquals("2026-05-29_19-26-00", folderName)
+        assertEquals("19-26-00_2026-05-29", folderName)
     }
 
     @Test
@@ -133,7 +133,7 @@ class ExportCopyingTest {
             set(2026, Calendar.MAY, 29, 19, 26, 0)
         }
 
-        assertEquals("2026-05-29_19-26-00_2", exportFolderName(calendar.time, attempt = 2))
-        assertEquals("2026-05-29_19-26-00_3", exportFolderName(calendar.time, attempt = 3))
+        assertEquals("19-26-00_2026-05-29_2", exportFolderName(calendar.time, attempt = 2))
+        assertEquals("19-26-00_2026-05-29_3", exportFolderName(calendar.time, attempt = 3))
     }
 }

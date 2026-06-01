@@ -35,6 +35,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.uzeyir.photoselector.ui.theme.StudioDarkSurface
+import com.uzeyir.photoselector.ui.theme.StudioDarkSurfaceVariant
 import com.uzeyir.photoselector.ui.theme.StudioFavoriteOnDark
 import com.uzeyir.photoselector.ui.theme.StudioSuccess
 import com.uzeyir.photoselector.ui.theme.StudioSuccessOnDark
@@ -50,7 +52,7 @@ fun FullscreenTopBar(
     onBack: () -> Unit
 ) {
     Surface(
-        color = Color.Black.copy(alpha = 0.56f),
+        color = StudioDarkSurface.copy(alpha = 0.78f),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -106,7 +108,7 @@ fun FullscreenBottomBar(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        color = Color.Black.copy(alpha = 0.62f),
+        color = StudioDarkSurface.copy(alpha = 0.82f),
         modifier = modifier.fillMaxWidth()
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
@@ -280,7 +282,7 @@ fun VideoCompactBottomBar(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        color = Color.Black.copy(alpha = 0.68f),
+        color = StudioDarkSurfaceVariant.copy(alpha = 0.84f),
         modifier = modifier.fillMaxWidth()
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {

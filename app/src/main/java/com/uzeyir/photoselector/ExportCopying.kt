@@ -12,7 +12,7 @@ import java.util.Date
 import java.util.Locale
 
 internal fun formatExportFolderTimestamp(date: Date): String =
-    SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(date)
+    SimpleDateFormat("HH-mm-ss_yyyy-MM-dd", Locale.US).format(date)
 
 internal fun exportFolderName(date: Date, attempt: Int = 1): String =
     exportFolderName(formatExportFolderTimestamp(date), attempt)

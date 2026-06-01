@@ -8,7 +8,8 @@ internal data class FolderLoadResult(
 )
 
 enum class PhotoViewerSource {
-    Gallery
+    Gallery,
+    Favorites
 }
 
 fun FolderDocumentData.toMediaItemOrNull(): MediaItemData? {

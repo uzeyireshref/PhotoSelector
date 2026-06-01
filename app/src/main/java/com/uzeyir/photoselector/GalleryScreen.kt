@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.uzeyir.photoselector.ui.theme.StudioDarkBackground
+import com.uzeyir.photoselector.ui.theme.StudioDarkSurface
 import com.uzeyir.photoselector.ui.theme.StudioFavorite
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -371,7 +372,7 @@ fun PhotoItem(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(6.dp)
-                    .background(Color.Black.copy(alpha = 0.34f), CircleShape)
+                    .background(StudioDarkSurface.copy(alpha = 0.64f), CircleShape)
             ) {
                 Icon(
                     imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,

@@ -326,7 +326,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                     allGridState = allGalleryGridState,
                     favoritesGridState = favoritesGalleryGridState,
                     onPhotoClick = { uri -> viewModel.openPhoto(uri) },
-                    onFavoritePhotoClick = { uri -> viewModel.openPhoto(uri) },
+                    onFavoritePhotoClick = { uri -> viewModel.openFavoritePhoto(uri) },
                     onLikeToggle = { uri -> viewModel.toggleLike(uri) }
                 )
                 Screen.PhotoDetail -> PhotoDetailScreen(

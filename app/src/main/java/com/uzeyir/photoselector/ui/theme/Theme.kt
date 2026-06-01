@@ -13,24 +13,29 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = StudioSurface,
-    onPrimary = StudioInk,
-    secondary = StudioSage,
-    tertiary = StudioGreen,
+    primary = StudioWarmAccent,
+    onPrimary = StudioDarkBackground,
+    secondary = StudioOnDarkVariant,
+    onSecondary = StudioDarkBackground,
+    tertiary = StudioFavoriteOnDark,
+    onTertiary = StudioDarkBackground,
     background = StudioDarkBackground,
     surface = StudioDarkSurface,
     surfaceVariant = StudioDarkSurfaceVariant,
     onBackground = StudioOnDark,
     onSurface = StudioOnDark,
-    onSurfaceVariant = StudioOnDarkVariant
+    onSurfaceVariant = StudioOnDarkVariant,
+    outline = StudioSage,
+    error = StudioFavoriteOnDark
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = StudioInk,
+    primary = StudioGreen,
     onPrimary = Color.White,
-    secondary = StudioGreen,
+    secondary = StudioSage,
     onSecondary = Color.White,
-    tertiary = StudioSage,
+    tertiary = StudioSuccess,
+    onTertiary = StudioInk,
     background = StudioPaper,
     onBackground = StudioInk,
     surface = StudioSurface,
