@@ -13,43 +13,44 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = StudioWarmAccent,
-    onPrimary = StudioDarkBackground,
-    secondary = StudioOnDarkVariant,
-    onSecondary = StudioDarkBackground,
-    tertiary = StudioFavoriteOnDark,
-    onTertiary = StudioDarkBackground,
-    background = StudioDarkBackground,
-    surface = StudioDarkSurface,
-    surfaceVariant = StudioDarkSurfaceVariant,
-    onBackground = StudioOnDark,
-    onSurface = StudioOnDark,
-    onSurfaceVariant = StudioOnDarkVariant,
-    outline = StudioSage,
-    error = StudioFavoriteOnDark
+    primary = TaksimPrimaryRed,
+    onPrimary = TaksimTextWhite,
+    secondary = TaksimBurgundy,
+    onSecondary = TaksimTextWhite,
+    tertiary = TaksimWarmAccent,
+    onTertiary = TaksimTextDark,
+    background = TaksimDarkBackground,
+    surface = TaksimSurfaceDark,
+    surfaceVariant = TaksimBurgundy,
+    onBackground = TaksimTextWhite,
+    onSurface = TaksimTextWhite,
+    onSurfaceVariant = TaksimTextWhite,
+    outline = TaksimOutlineDark,
+    error = TaksimError
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = StudioGreen,
-    onPrimary = Color.White,
-    secondary = StudioSage,
-    onSecondary = Color.White,
-    tertiary = StudioSuccess,
-    onTertiary = StudioInk,
-    background = StudioPaper,
-    onBackground = StudioInk,
-    surface = StudioSurface,
-    onSurface = StudioInk,
-    surfaceVariant = StudioSurfaceVariant,
-    onSurfaceVariant = StudioInk,
-    outline = StudioLine
+    primary = TaksimPrimaryRed,
+    onPrimary = TaksimTextWhite,
+    secondary = TaksimBurgundy,
+    onSecondary = TaksimTextWhite,
+    tertiary = TaksimSuccess,
+    onTertiary = TaksimTextWhite,
+    background = TaksimLightBackground,
+    onBackground = TaksimTextDark,
+    surface = TaksimSurfaceLight,
+    onSurface = TaksimTextDark,
+    surfaceVariant = TaksimWarmAccent,
+    onSurfaceVariant = TaksimTextDark,
+    outline = TaksimOutlineLight,
+    error = TaksimError
 )
 
 @Composable
 fun PhotoSelectorTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
