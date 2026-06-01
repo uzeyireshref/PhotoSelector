@@ -2,6 +2,7 @@ package com.uzeyir.photoselector
 
 import android.net.Uri
 import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -41,6 +42,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,6 +60,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.uzeyir.photoselector.ui.theme.StudioDarkBackground
 import com.uzeyir.photoselector.ui.theme.StudioFavorite
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @Composable
@@ -247,17 +250,18 @@ fun PhotoItem(
     onLikeToggle: () -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val highQualityCacheKey = remember(media) { highQualityGalleryThumbnailCacheKey(media) }
     var fastThumbnail by remember(media.uri) { mutableStateOf<Bitmap?>(null) }
-    var highQualityThumbnailPainter by remember(media.uri) {
-        mutableStateOf<Painter?>(cachedHighQualityGalleryThumbnailPainter(media.uri))
+    var highQualityThumbnailPainter by remember(highQualityCacheKey) {
+        mutableStateOf<Painter?>(cachedHighQualityGalleryThumbnailPainter(highQualityCacheKey))
     }
-    val thumbnailRequest = remember(media.uri, thumbnailSizePx) {
-        val cacheKey = highQualityGalleryThumbnailCacheKey(media.uri.toString())
+    val thumbnailRequest = remember(media.uri, thumbnailSizePx, highQualityCacheKey) {
         ImageRequest.Builder(context)
             .data(media.uri)
             .size(GALLERY_HIGH_QUALITY_IMAGE_SIZE_PX)
-            .memoryCacheKey(cacheKey)
-            .diskCacheKey(cacheKey)
+            .memoryCacheKey(highQualityCacheKey)
+            .diskCacheKey(highQualityCacheKey)
             .crossfade(true)
             .build()
     }
@@ -266,11 +270,20 @@ fun PhotoItem(
     LaunchedEffect(media.uri, media.mediaType, thumbnailSizePx) {
         fastThumbnail = null
         if (media.mediaType == MediaType.Photo) {
-            fastThumbnail = loadFastSafThumbnail(
-                contentResolver = context.contentResolver,
-                uri = media.uri,
-                sizePx = thumbnailSizePx
-            )
+            if (highQualityThumbnailPainter == null) {
+                loadCachedHighQualityGalleryThumbnailBitmap(context, highQualityCacheKey)?.let { cachedBitmap ->
+                    val cachedPainter = BitmapPainter(cachedBitmap.asImageBitmap())
+                    highQualityThumbnailPainter = cachedPainter
+                    cacheHighQualityGalleryThumbnailPainter(highQualityCacheKey, cachedPainter)
+                }
+            }
+            if (highQualityThumbnailPainter == null) {
+                fastThumbnail = loadFastSafThumbnail(
+                    contentResolver = context.contentResolver,
+                    uri = media.uri,
+                    sizePx = thumbnailSizePx
+                )
+            }
         }
     }
 
@@ -339,7 +352,13 @@ fun PhotoItem(
                             placeholder = fastThumbnailPainter,
                             onSuccess = { state ->
                                 highQualityThumbnailPainter = state.painter
-                                cacheHighQualityGalleryThumbnailPainter(media.uri, state.painter)
+                                cacheHighQualityGalleryThumbnailPainter(highQualityCacheKey, state.painter)
+                                val bitmap = (state.result.drawable as? BitmapDrawable)?.bitmap
+                                if (bitmap != null) {
+                                    coroutineScope.launch {
+                                        cacheHighQualityGalleryThumbnailBitmap(context, highQualityCacheKey, bitmap)
+                                    }
+                                }
                             },
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop

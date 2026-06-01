@@ -59,6 +59,32 @@ class SafThumbnailUtilsTest {
     }
 
     @Test
+    fun highQualityThumbnailCacheKeyPrefersStableMediaMetadata() {
+        val firstUri = android.net.FakeUri("content://first/photo.jpg")
+        val secondUri = android.net.FakeUri("content://second/photo.jpg")
+        val first = MediaItemData(
+            uri = firstUri,
+            displayName = "IMG_001.jpg",
+            lastModified = 1234L,
+            sizeBytes = 5_678L
+        )
+        val second = first.copy(uri = secondUri)
+
+        assertEquals(highQualityGalleryThumbnailCacheKey(first), highQualityGalleryThumbnailCacheKey(second))
+    }
+
+    @Test
+    fun highQualityDiskCacheFileNameIsStableAndSafeForFileSystem() {
+        val fileName = highQualityGalleryThumbnailDiskCacheFileName(
+            cacheKey = "content://folder/photo.jpg#high-quality#512"
+        )
+
+        assertEquals(68, fileName.length)
+        assertEquals(true, fileName.endsWith(".jpg"))
+        assertEquals(true, fileName.removeSuffix(".jpg").all { it in '0'..'9' || it in 'a'..'f' })
+    }
+
+    @Test
     fun coilDiskCacheUsesOneGigabyteLimit() {
         assertEquals(1_073_741_824L, IMAGE_DISK_CACHE_MAX_SIZE_BYTES)
     }
