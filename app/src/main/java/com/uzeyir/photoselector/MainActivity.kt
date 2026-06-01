@@ -8,85 +8,43 @@ import android.os.Bundle
 import android.os.storage.StorageManager
 import android.os.storage.StorageVolume
 import android.provider.DocumentsContract
-import androidx.annotation.OptIn
-import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.ActivityResult
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.calculatePan
-import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.RotateRight
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.FullscreenExit
-import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.SdStorage
-import androidx.compose.material.icons.filled.SystemUpdate
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.positionChanged
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.media3.common.MediaItem as PlayerMediaItem
-import androidx.media3.common.Player
-import androidx.media3.common.VideoSize
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.compose.PlayerSurface
-import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
-import androidx.media3.ui.AspectRatioFrameLayout
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import com.uzeyir.photoselector.ui.theme.PhotoSelectorTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -121,6 +79,9 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
     val selectionWarningMessage = viewModel.selectionWarningMessage
     val galleryTab = viewModel.galleryTab
     val pendingReturnToFolderConfirmation = viewModel.pendingReturnToFolderConfirmation
+    val updateStatus = viewModel.updateStatus
+    val language = viewModel.language
+    val includeRawFiles = viewModel.includeRawFiles
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val updateRepository = remember { GitHubUpdateRepository() }
@@ -132,9 +93,6 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
             )
         )
     }
-    var updateStatus by remember { mutableStateOf<AppUpdateStatus>(AppUpdateStatus.Idle) }
-    var language by remember { mutableStateOf(UiText.defaultLanguage) }
-    var includeRawFiles by remember { mutableStateOf(true) }
     val strings = UiText.strings(language)
     var sdCardOptions by remember { mutableStateOf<List<StorageVolume>>(emptyList()) }
     val galleryGridState = rememberLazyGridState()
@@ -174,7 +132,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
             persistedReadUris = persistedReadUris,
             persistedWriteUris = persistedWriteUris
         )?.let { savedFolder ->
-            runCatching {
+            cancellationSafeRunCatching {
                 viewModel.loadMediaFromFolder(Uri.parse(savedFolder), context.contentResolver)
                 viewModel.navigateTo(Screen.Gallery)
             }.onFailure {
@@ -187,7 +145,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
 
     fun handleSelectedFolder(uri: Uri?) {
         uri?.let { selectedUri ->
-            val permissionGranted = runCatching {
+            val permissionGranted = cancellationSafeRunCatching {
                 context.contentResolver.takePersistableUriPermission(
                     selectedUri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
@@ -198,7 +156,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
             if (!permissionGranted) return
 
             coroutineScope.launch {
-                runCatching {
+                cancellationSafeRunCatching {
                     viewModel.loadMediaFromFolder(selectedUri, context.contentResolver)
                     lastFolderStore.save(selectedUri.toString())
                     viewModel.navigateTo(Screen.Gallery)
@@ -310,7 +268,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                         videoPayablePrice = viewModel.videoDisplayPrice,
                         totalPayablePrice = viewModel.totalDisplayPrice,
                         onReviewClick = {
-                            includeRawFiles = true
+                            viewModel.chooseIncludeRawFiles(true)
                             viewModel.goToConfirmationOrWarn()
                         },
                         buttonText = strings.confirmSelection,
@@ -327,28 +285,28 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                     updateStatus = updateStatus,
                     isLoadingMedia = isLoadingMedia,
                     language = language,
-                    onLanguageSelected = { selectedLanguage -> language = selectedLanguage },
+                    onLanguageSelected = { selectedLanguage -> viewModel.selectLanguage(selectedLanguage) },
                     strings = strings,
                     onCheckUpdate = {
                         coroutineScope.launch {
-                            updateStatus = AppUpdateStatus.Checking
-                            runCatching {
+                            viewModel.replaceUpdateStatus(AppUpdateStatus.Checking)
+                            cancellationSafeRunCatching {
                                 val latestRelease = updateRepository.fetchLatestRelease()
                                 when (val decision = UpdatePolicy.decide(BuildConfig.VERSION_CODE, latestRelease)) {
                                     UpdateDecision.UpToDate -> {
-                                        updateStatus = AppUpdateStatus.UpToDate
+                                        viewModel.replaceUpdateStatus(AppUpdateStatus.UpToDate)
                                     }
                                     is UpdateDecision.UpdateAvailable -> {
-                                        updateStatus = AppUpdateStatus.Available(decision.updateInfo.versionName)
+                                        viewModel.replaceUpdateStatus(AppUpdateStatus.Available(decision.updateInfo.versionName))
                                         delay(450)
-                                        updateStatus = AppUpdateStatus.Downloading
+                                        viewModel.replaceUpdateStatus(AppUpdateStatus.Downloading)
                                         val apkFile = updateRepository.downloadApk(context, decision.updateInfo)
-                                        updateStatus = AppUpdateStatus.ReadyToInstall
+                                        viewModel.replaceUpdateStatus(AppUpdateStatus.ReadyToInstall)
                                         ApkInstaller.openInstaller(context, apkFile)
                                     }
                                 }
                             }.onFailure {
-                                updateStatus = AppUpdateStatus.Error
+                                viewModel.replaceUpdateStatus(AppUpdateStatus.Error)
                             }
                         }
                     }
@@ -396,11 +354,11 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                     totalPayablePrice = viewModel.totalDisplayPrice,
                     strings = strings,
                     onBack = { viewModel.navigateTo(Screen.Gallery) },
-                    onIncludeRawFilesChange = { includeRawFiles = it },
+                    onIncludeRawFilesChange = { viewModel.chooseIncludeRawFiles(it) },
                     onShareWhatsApp = {
                         val files = viewModel.selectedTransferFiles(includeRawFiles = includeRawFiles)
                         if (files.isNotEmpty()) {
-                            runCatching {
+                            cancellationSafeRunCatching {
                                 context.startActivity(whatsAppDocumentShareIntent(files))
                             }.onFailure {
                                 coroutineScope.launch {

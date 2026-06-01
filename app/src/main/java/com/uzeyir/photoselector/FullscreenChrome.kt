@@ -29,10 +29,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.uzeyir.photoselector.ui.theme.StudioFavoriteOnDark
+import com.uzeyir.photoselector.ui.theme.StudioSuccess
+import com.uzeyir.photoselector.ui.theme.StudioSuccessOnDark
 
 @Composable
 fun FullscreenTopBar(
@@ -87,7 +89,7 @@ fun FullscreenTopBar(
                 Icon(
                     imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     contentDescription = strings.like,
-                    tint = if (isLiked) Color(0xFFFF6B6B) else Color.White
+                    tint = if (isLiked) StudioFavoriteOnDark else Color.White
                 )
             }
         }
@@ -169,7 +171,7 @@ private fun PhoneFullscreenBottomBarContent(
             Text("${strings.selected}: ${photoCount + videoCount}", color = Color.White, style = MaterialTheme.typography.titleMedium)
             Text("${strings.photoShort}: $photoCount   ${strings.videoShort}: $videoCount", color = Color.White.copy(alpha = 0.72f))
             if (discount > 0) {
-                Text("${strings.discount}: ${strings.price(discount)}", color = Color(0xFF81C784), style = MaterialTheme.typography.bodyMedium)
+                Text("${strings.discount}: ${strings.price(discount)}", color = StudioSuccessOnDark, style = MaterialTheme.typography.bodyMedium)
             }
             Text("${strings.total}: ${strings.price(totalPayablePrice)}", color = Color.White, style = MaterialTheme.typography.titleLarge)
         }
@@ -200,16 +202,23 @@ private fun TabletFullscreenBottomBarContent(
         horizontalArrangement = Arrangement.spacedBy(18.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        DarkCompactPriceSummary(
+        CompactPriceSummary(
             photoCount = photoCount,
             videoCount = videoCount,
-            photoOriginalPrice = photoOriginalPrice,
-            photoPayablePrice = photoPayablePrice,
-            videoOriginalPrice = videoOriginalPrice,
-            videoPayablePrice = videoPayablePrice,
+            discount = (photoOriginalPrice + videoOriginalPrice) - (photoPayablePrice + videoPayablePrice),
             totalPayablePrice = totalPayablePrice,
             strings = strings,
-            modifier = Modifier.weight(1.5f)
+            modifier = Modifier.weight(1.5f),
+            colors = PriceSummaryColors(
+                selected = Color.White,
+                supporting = Color.White.copy(alpha = 0.74f),
+                discount = StudioSuccessOnDark,
+                totalLabel = Color.White.copy(alpha = 0.72f),
+                totalPrice = Color.White
+            ),
+            containerColor = Color.White.copy(alpha = 0.10f),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
         )
         Row(
             modifier = Modifier.weight(1f),
@@ -223,46 +232,6 @@ private fun TabletFullscreenBottomBarContent(
             ) {
                 Text(strings.review, style = MaterialTheme.typography.titleMedium)
             }
-        }
-    }
-}
-
-@Composable
-private fun DarkCompactPriceSummary(
-    photoCount: Int,
-    videoCount: Int,
-    photoOriginalPrice: Int,
-    photoPayablePrice: Int,
-    videoOriginalPrice: Int,
-    videoPayablePrice: Int,
-    totalPayablePrice: Int,
-    strings: LocalizedStrings,
-    modifier: Modifier = Modifier
-) {
-    val discount = (photoOriginalPrice + videoOriginalPrice) - (photoPayablePrice + videoPayablePrice)
-    Surface(
-        color = Color.White.copy(alpha = 0.10f),
-        shape = RoundedCornerShape(8.dp),
-        modifier = modifier
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("${strings.selected}: ${photoCount + videoCount}", color = Color.White, style = MaterialTheme.typography.titleMedium)
-                Text("${strings.photoShort}: $photoCount   ${strings.videoShort}: $videoCount", color = Color.White.copy(alpha = 0.74f))
-                if (discount > 0) {
-                    Text("${strings.discount}: ${strings.price(discount)}", color = Color(0xFF81C784))
-                }
-            }
-            Text(
-                text = "${strings.total}: ${strings.price(totalPayablePrice)}",
-                style = MaterialTheme.typography.headlineSmall,
-                color = Color.White,
-                fontWeight = FontWeight.SemiBold
-            )
         }
     }
 }
@@ -338,7 +307,7 @@ fun SelectionPriceSummary(
     totalPayablePrice: Int,
     strings: LocalizedStrings,
     textColor: Color = LocalContentColor.current,
-    discountedColor: Color = Color(0xFF2E7D32),
+    discountedColor: Color = StudioSuccess,
     modifier: Modifier = Modifier
 ) {
     Surface(

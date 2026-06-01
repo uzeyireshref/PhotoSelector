@@ -86,9 +86,9 @@ internal fun cleanupCreatedExportDocuments(
     deleteDocument: (Uri) -> Boolean
 ) {
     createdFileUris.asReversed().forEach { uri ->
-        runCatching { deleteDocument(uri) }
+        cancellationSafeRunCatching { deleteDocument(uri) }
     }
-    runCatching { deleteDocument(exportFolderUri) }
+    cancellationSafeRunCatching { deleteDocument(exportFolderUri) }
 }
 
 internal fun copyDocumentFileDescriptors(
@@ -99,7 +99,7 @@ internal fun copyDocumentFileDescriptors(
     expectedBytes: Long? = null,
     onProgress: (copiedBytes: Long, totalBytes: Long?) -> Unit = { _, _ -> }
 ): Long {
-    val channelCopiedBytes = runCatching {
+    val channelCopiedBytes = cancellationSafeRunCatching {
         copyDocumentFileDescriptorsWithChannel(contentResolver, sourceUri, destinationUri, displayName, onProgress)
     }.getOrNull()
     if (channelCopiedBytes != null && channelCopiedBytes > 0L) {

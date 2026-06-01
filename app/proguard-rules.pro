@@ -12,10 +12,15 @@
 #   public *;
 #}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Preserve source and line information so release crash reports remain actionable.
+-keepattributes SourceFile,LineNumberTable
 
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
-#-renamesourcefileattribute SourceFile
+-renamesourcefileattribute SourceFile
+
+# App update release metadata is parsed from GitHub release JSON into this model.
+-keep class com.uzeyir.photoselector.AppUpdateInfo { *; }
+
+# Keep the provider class referenced from AndroidManifest/FileProvider XML stable in release builds.
+-keep class androidx.core.content.FileProvider { *; }

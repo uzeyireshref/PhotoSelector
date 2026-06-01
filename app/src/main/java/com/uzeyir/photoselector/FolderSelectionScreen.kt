@@ -43,6 +43,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.uzeyir.photoselector.ui.theme.StudioGreen
+import com.uzeyir.photoselector.ui.theme.StudioInk
+import com.uzeyir.photoselector.ui.theme.StudioPaper
+import com.uzeyir.photoselector.ui.theme.StudioSage
+import com.uzeyir.photoselector.ui.theme.StudioSuccess
+import com.uzeyir.photoselector.ui.theme.StudioSurface
+import com.uzeyir.photoselector.ui.theme.StudioSurfaceVariant
+import com.uzeyir.photoselector.ui.theme.StudioWarmAccent
 
 @Composable
 fun FolderSelectionScreen(
@@ -70,9 +78,9 @@ fun FolderSelectionScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFFF7FAF8),
-                        Color(0xFFEAF3EF),
-                        Color(0xFFFDF8EF)
+                        StudioSurface,
+                        StudioSurfaceVariant,
+                        StudioPaper
                     )
                 )
             )
@@ -129,7 +137,7 @@ private fun StartScreenPanel(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = Color.White.copy(alpha = 0.92f),
+        color = StudioSurface.copy(alpha = 0.92f),
         tonalElevation = 2.dp,
         shadowElevation = 8.dp,
         shape = RoundedCornerShape(8.dp)
@@ -143,13 +151,13 @@ private fun StartScreenPanel(
             Text(
                 text = title,
                 style = MaterialTheme.typography.headlineSmall,
-                color = Color(0xFF14211F)
+                color = StudioInk
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF52615D),
+                color = StudioSage,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(24.dp))
@@ -158,7 +166,7 @@ private fun StartScreenPanel(
                 enabled = !isLoadingMedia,
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF17423C),
+                    containerColor = StudioGreen,
                     contentColor = Color.White
                 ),
                 modifier = Modifier
@@ -175,7 +183,7 @@ private fun StartScreenPanel(
                 enabled = !isLoadingMedia,
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color(0xFF17423C)
+                    contentColor = StudioGreen
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -189,7 +197,7 @@ private fun StartScreenPanel(
             Text(
                 text = storageHint,
                 style = MaterialTheme.typography.labelMedium,
-                color = Color(0xFF6E7A76)
+                color = StudioSage
             )
             Spacer(modifier = Modifier.height(22.dp))
             if (isLoadingMedia) {
@@ -210,7 +218,7 @@ private fun StartScreenPanel(
 private fun StartScreenMark() {
     Surface(
         modifier = Modifier.size(72.dp),
-        color = Color(0xFF17423C),
+        color = StudioGreen,
         shape = CircleShape,
         shadowElevation = 4.dp
     ) {
@@ -223,7 +231,7 @@ private fun StartScreenMark() {
             Icon(
                 imageVector = Icons.Default.PhotoLibrary,
                 contentDescription = null,
-                tint = Color(0xFFFFD18A),
+                tint = StudioWarmAccent,
                 modifier = Modifier.size(34.dp)
             )
         }
@@ -267,7 +275,7 @@ fun UpdateCheckButton(
     val label = updateStatus.label(strings)
     val colors = if (isUpToDate) {
         ButtonDefaults.buttonColors(
-            containerColor = Color(0xFF2E7D32),
+            containerColor = StudioSuccess,
             contentColor = Color.White
         )
     } else {

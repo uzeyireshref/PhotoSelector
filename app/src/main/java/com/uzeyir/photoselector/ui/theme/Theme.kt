@@ -17,12 +17,12 @@ private val DarkColorScheme = darkColorScheme(
     onPrimary = StudioInk,
     secondary = StudioSage,
     tertiary = StudioGreen,
-    background = Color(0xFF111614),
-    surface = Color(0xFF1A211E),
-    surfaceVariant = Color(0xFF26302B),
-    onBackground = Color(0xFFF2F4F0),
-    onSurface = Color(0xFFF2F4F0),
-    onSurfaceVariant = Color(0xFFD5DDD5)
+    background = StudioDarkBackground,
+    surface = StudioDarkSurface,
+    surfaceVariant = StudioDarkSurfaceVariant,
+    onBackground = StudioOnDark,
+    onSurface = StudioOnDark,
+    onSurfaceVariant = StudioOnDarkVariant
 )
 
 private val LightColorScheme = lightColorScheme(

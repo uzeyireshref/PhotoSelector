@@ -50,6 +50,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.uzeyir.photoselector.ui.theme.StudioDarkBackground
+import com.uzeyir.photoselector.ui.theme.StudioFavorite
 import kotlin.math.roundToInt
 
 @Composable
@@ -257,7 +259,7 @@ fun PhotoItem(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color(0xFF181818)),
+                        .background(StudioDarkBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     AsyncImage(
@@ -291,7 +293,7 @@ fun PhotoItem(
                 Icon(
                     imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     contentDescription = strings.like,
-                    tint = if (isLiked) Color(0xFFE53935) else Color.White
+                    tint = if (isLiked) StudioFavorite else Color.White
                 )
             }
         }

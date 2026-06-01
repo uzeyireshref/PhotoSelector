@@ -8,13 +8,16 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.util.Date
 
-class PhotoViewModel : ViewModel() {
+class PhotoViewModel(
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle()
+) : ViewModel() {
     var currentScreen by mutableStateOf(Screen.FolderSelection)
     val photos = mutableStateListOf<MediaItemData>()
     val likedPhotos = mutableStateListOf<Uri>()
@@ -40,6 +43,12 @@ class PhotoViewModel : ViewModel() {
     var galleryTab by mutableStateOf(GalleryTab.All)
         private set
     var pendingReturnToFolderConfirmation by mutableStateOf(false)
+        private set
+    var language by mutableStateOf(savedLanguage())
+        private set
+    var includeRawFiles by mutableStateOf(savedStateHandle[KEY_INCLUDE_RAW_FILES] ?: true)
+        private set
+    var updateStatus by mutableStateOf(savedUpdateStatus())
         private set
 
     val likedPhotoItems: List<MediaItemData>
@@ -126,6 +135,22 @@ class PhotoViewModel : ViewModel() {
 
     fun selectGalleryTab(tab: GalleryTab) {
         galleryTab = tab
+    }
+
+    fun selectLanguage(selectedLanguage: AppLanguage) {
+        language = selectedLanguage
+        savedStateHandle[KEY_LANGUAGE] = selectedLanguage.name
+    }
+
+    fun chooseIncludeRawFiles(include: Boolean) {
+        includeRawFiles = include
+        savedStateHandle[KEY_INCLUDE_RAW_FILES] = include
+    }
+
+    fun replaceUpdateStatus(status: AppUpdateStatus) {
+        updateStatus = status
+        savedStateHandle[KEY_UPDATE_STATUS] = status.savedName
+        savedStateHandle[KEY_UPDATE_VERSION_NAME] = (status as? AppUpdateStatus.Available)?.versionName
     }
 
     fun goToConfirmationOrWarn(): Boolean {
@@ -302,7 +327,7 @@ class PhotoViewModel : ViewModel() {
         exportStatus = ExportStatus.Copying()
         val folderName = timestamp()
         exportStatus = withContext(Dispatchers.IO) {
-            runCatching {
+            cancellationSafeRunCatching {
                 SelectionExporter(
                     contentResolver = contentResolver,
                     treeUri = treeUri,
@@ -369,4 +394,40 @@ class PhotoViewModel : ViewModel() {
 
     private fun timestamp(): String =
         formatExportFolderTimestamp(Date())
+
+    private fun savedLanguage(): AppLanguage {
+        val languageName = savedStateHandle[KEY_LANGUAGE] ?: UiText.defaultLanguage.name
+        return AppLanguage.entries.firstOrNull { it.name == languageName } ?: UiText.defaultLanguage
+    }
+
+    private fun savedUpdateStatus(): AppUpdateStatus =
+        when (savedStateHandle[KEY_UPDATE_STATUS] ?: AppUpdateStatus.Idle.savedName) {
+            AppUpdateStatus.Checking.savedName -> AppUpdateStatus.Checking
+            AppUpdateStatus.UpToDate.savedName -> AppUpdateStatus.UpToDate
+            AppUpdateStatus.Available("").savedName -> AppUpdateStatus.Available(
+                savedStateHandle[KEY_UPDATE_VERSION_NAME] ?: ""
+            )
+            AppUpdateStatus.Downloading.savedName -> AppUpdateStatus.Downloading
+            AppUpdateStatus.ReadyToInstall.savedName -> AppUpdateStatus.ReadyToInstall
+            AppUpdateStatus.Error.savedName -> AppUpdateStatus.Error
+            else -> AppUpdateStatus.Idle
+        }
+
+    private val AppUpdateStatus.savedName: String
+        get() = when (this) {
+            AppUpdateStatus.Idle -> "Idle"
+            AppUpdateStatus.Checking -> "Checking"
+            AppUpdateStatus.UpToDate -> "UpToDate"
+            is AppUpdateStatus.Available -> "Available"
+            AppUpdateStatus.Downloading -> "Downloading"
+            AppUpdateStatus.ReadyToInstall -> "ReadyToInstall"
+            AppUpdateStatus.Error -> "Error"
+        }
+
+    private companion object {
+        const val KEY_LANGUAGE = "language"
+        const val KEY_INCLUDE_RAW_FILES = "includeRawFiles"
+        const val KEY_UPDATE_STATUS = "updateStatus"
+        const val KEY_UPDATE_VERSION_NAME = "updateVersionName"
+    }
 }
