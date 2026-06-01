@@ -1,6 +1,7 @@
 package com.uzeyir.photoselector
 
 import android.net.Uri
+import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -35,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +44,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -239,12 +243,25 @@ fun PhotoItem(
     onLikeToggle: () -> Unit
 ) {
     val context = LocalContext.current
+    var fastThumbnail by remember(media.uri) { mutableStateOf<Bitmap?>(null) }
     val thumbnailRequest = remember(media.uri, thumbnailSizePx) {
         ImageRequest.Builder(context)
             .data(media.uri)
-            .size(thumbnailSizePx)
+            .size(GALLERY_HIGH_QUALITY_IMAGE_SIZE_PX)
             .crossfade(true)
             .build()
+    }
+    val fastThumbnailPainter = fastThumbnail?.let { BitmapPainter(it.asImageBitmap()) }
+
+    LaunchedEffect(media.uri, media.mediaType, thumbnailSizePx) {
+        fastThumbnail = null
+        if (media.mediaType == MediaType.Photo) {
+            fastThumbnail = loadFastSafThumbnail(
+                contentResolver = context.contentResolver,
+                uri = media.uri,
+                sizePx = thumbnailSizePx
+            )
+        }
     }
 
     Card(
@@ -267,6 +284,7 @@ fun PhotoItem(
                     AsyncImage(
                         model = thumbnailRequest,
                         contentDescription = media.displayName,
+                        placeholder = null,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
@@ -281,6 +299,7 @@ fun PhotoItem(
                 AsyncImage(
                     model = thumbnailRequest,
                     contentDescription = media.displayName,
+                    placeholder = fastThumbnailPainter,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
