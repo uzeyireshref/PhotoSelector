@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -19,8 +20,10 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -42,10 +45,8 @@ fun FullscreenTopBar(
     currentIndex: Int,
     totalCount: Int,
     strings: LocalizedStrings,
-    isLiked: Boolean,
     onRotate: (() -> Unit)?,
     onVideoFullscreen: (() -> Unit)?,
-    onLikeToggle: () -> Unit,
     onBack: () -> Unit
 ) {
     Surface(
@@ -85,13 +86,6 @@ fun FullscreenTopBar(
                     Icon(Icons.Default.Fullscreen, contentDescription = strings.fullscreen, tint = Color.White)
                 }
             }
-            IconButton(onClick = onLikeToggle) {
-                Icon(
-                    imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = strings.like,
-                    tint = if (isLiked) StudioFavoriteOnDark else Color.White
-                )
-            }
         }
     }
 }
@@ -106,6 +100,8 @@ fun FullscreenBottomBar(
     videoPayablePrice: Int,
     totalPayablePrice: Int,
     strings: LocalizedStrings,
+    isLiked: Boolean,
+    onLikeToggle: () -> Unit,
     onReviewClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -124,6 +120,8 @@ fun FullscreenBottomBar(
                     videoPayablePrice = videoPayablePrice,
                     totalPayablePrice = totalPayablePrice,
                     strings = strings,
+                    isLiked = isLiked,
+                    onLikeToggle = onLikeToggle,
                     onReviewClick = onReviewClick
                 )
             } else {
@@ -136,6 +134,8 @@ fun FullscreenBottomBar(
                     videoPayablePrice = videoPayablePrice,
                     totalPayablePrice = totalPayablePrice,
                     strings = strings,
+                    isLiked = isLiked,
+                    onLikeToggle = onLikeToggle,
                     onReviewClick = onReviewClick
                 )
             }
@@ -153,6 +153,8 @@ private fun PhoneFullscreenBottomBarContent(
     videoPayablePrice: Int,
     totalPayablePrice: Int,
     strings: LocalizedStrings,
+    isLiked: Boolean,
+    onLikeToggle: () -> Unit,
     onReviewClick: () -> Unit
 ) {
     Row(
@@ -176,6 +178,7 @@ private fun PhoneFullscreenBottomBarContent(
             Text("${strings.total}: ${strings.price(totalPayablePrice)}", color = Color.White, style = MaterialTheme.typography.titleLarge)
         }
         Spacer(modifier = Modifier.width(14.dp))
+        FullscreenLikeButton(isLiked = isLiked, strings = strings, onLikeToggle = onLikeToggle)
         Button(onClick = onReviewClick) {
             Text(strings.review)
         }
@@ -192,6 +195,8 @@ private fun TabletFullscreenBottomBarContent(
     videoPayablePrice: Int,
     totalPayablePrice: Int,
     strings: LocalizedStrings,
+    isLiked: Boolean,
+    onLikeToggle: () -> Unit,
     onReviewClick: () -> Unit
 ) {
     Row(
@@ -225,6 +230,7 @@ private fun TabletFullscreenBottomBarContent(
             horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            FullscreenLikeButton(isLiked = isLiked, strings = strings, onLikeToggle = onLikeToggle)
             Button(
                 onClick = onReviewClick,
                 shape = RoundedCornerShape(8.dp),
@@ -233,6 +239,28 @@ private fun TabletFullscreenBottomBarContent(
                 Text(strings.review, style = MaterialTheme.typography.titleMedium)
             }
         }
+    }
+}
+
+@Composable
+private fun FullscreenLikeButton(
+    isLiked: Boolean,
+    strings: LocalizedStrings,
+    onLikeToggle: () -> Unit
+) {
+    FilledIconButton(
+        onClick = onLikeToggle,
+        modifier = Modifier.size(58.dp),
+        colors = IconButtonDefaults.filledIconButtonColors(
+            containerColor = Color.White.copy(alpha = 0.16f),
+            contentColor = if (isLiked) StudioFavoriteOnDark else Color.White
+        )
+    ) {
+        Icon(
+            imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+            contentDescription = strings.like,
+            modifier = Modifier.size(32.dp)
+        )
     }
 }
 
@@ -246,6 +274,8 @@ fun VideoCompactBottomBar(
     videoPayablePrice: Int,
     totalPayablePrice: Int,
     strings: LocalizedStrings,
+    isLiked: Boolean,
+    onLikeToggle: () -> Unit,
     onReviewClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -264,6 +294,8 @@ fun VideoCompactBottomBar(
                     videoPayablePrice = videoPayablePrice,
                     totalPayablePrice = totalPayablePrice,
                     strings = strings,
+                    isLiked = isLiked,
+                    onLikeToggle = onLikeToggle,
                     onReviewClick = onReviewClick
                 )
             } else {
@@ -287,6 +319,7 @@ fun VideoCompactBottomBar(
                             style = MaterialTheme.typography.titleMedium
                         )
                     }
+                    FullscreenLikeButton(isLiked = isLiked, strings = strings, onLikeToggle = onLikeToggle)
                     Button(onClick = onReviewClick) {
                         Text(strings.review)
                     }

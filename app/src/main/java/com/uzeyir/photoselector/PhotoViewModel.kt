@@ -50,6 +50,9 @@ class PhotoViewModel(
         private set
     var updateStatus by mutableStateOf(savedUpdateStatus())
         private set
+    private var lastFolderRestoreAttempted by mutableStateOf(
+        savedStateHandle[KEY_LAST_FOLDER_RESTORE_ATTEMPTED] ?: false
+    )
 
     val likedPhotoItems: List<MediaItemData>
         get() = likedMediaItemCache.filter { it.mediaType == MediaType.Photo }
@@ -135,6 +138,16 @@ class PhotoViewModel(
 
     fun selectGalleryTab(tab: GalleryTab) {
         galleryTab = tab
+    }
+
+    fun shouldRestoreLastFolderOnStartup(): Boolean =
+        !lastFolderRestoreAttempted &&
+            currentScreen == Screen.FolderSelection &&
+            !hasActiveFolderSession()
+
+    fun markLastFolderRestoreAttempted() {
+        lastFolderRestoreAttempted = true
+        savedStateHandle[KEY_LAST_FOLDER_RESTORE_ATTEMPTED] = true
     }
 
     fun selectLanguage(selectedLanguage: AppLanguage) {
@@ -429,5 +442,6 @@ class PhotoViewModel(
         const val KEY_INCLUDE_RAW_FILES = "includeRawFiles"
         const val KEY_UPDATE_STATUS = "updateStatus"
         const val KEY_UPDATE_VERSION_NAME = "updateVersionName"
+        const val KEY_LAST_FOLDER_RESTORE_ATTEMPTED = "lastFolderRestoreAttempted"
     }
 }

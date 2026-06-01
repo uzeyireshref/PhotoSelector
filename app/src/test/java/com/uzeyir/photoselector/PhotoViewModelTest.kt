@@ -328,4 +328,14 @@ class PhotoViewModelTest {
         assertEquals(emptyList<Uri>(), viewModel.likedPhotos)
         assertEquals(0, viewModel.selectedPhotoCount)
     }
+
+    @Test
+    fun lastFolderRestoreIsAttemptedOnlyOnceForViewModelLifetime() {
+        val viewModel = PhotoViewModel()
+
+        assertEquals(true, viewModel.shouldRestoreLastFolderOnStartup())
+        viewModel.markLastFolderRestoreAttempted()
+
+        assertEquals(false, viewModel.shouldRestoreLastFolderOnStartup())
+    }
 }

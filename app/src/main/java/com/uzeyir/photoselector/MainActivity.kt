@@ -96,7 +96,8 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
     }
     val strings = UiText.strings(language)
     var sdCardOptions by remember { mutableStateOf<List<StorageVolume>>(emptyList()) }
-    val galleryGridState = rememberLazyGridState()
+    val allGalleryGridState = rememberLazyGridState()
+    val favoritesGalleryGridState = rememberLazyGridState()
     val galleryContentKey = viewModel.mediaLoadVersion
 
     BackHandler(enabled = currentScreen != Screen.FolderSelection) {
@@ -115,11 +116,14 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
 
     LaunchedEffect(galleryContentKey) {
         if (photos.isNotEmpty()) {
-            galleryGridState.scrollToItem(0)
+            allGalleryGridState.scrollToItem(0)
+            favoritesGalleryGridState.scrollToItem(0)
         }
     }
 
     LaunchedEffect(Unit) {
+        if (!viewModel.shouldRestoreLastFolderOnStartup()) return@LaunchedEffect
+        viewModel.markLastFolderRestoreAttempted()
         val persistedPermissions = context.contentResolver.persistedUriPermissions
         val persistedReadUris = persistedPermissions
             .filter { it.isReadPermission }
@@ -319,7 +323,8 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                     selectedTab = galleryTab,
                     onTabSelected = { tab -> viewModel.selectGalleryTab(tab) },
                     strings = strings,
-                    gridState = galleryGridState,
+                    allGridState = allGalleryGridState,
+                    favoritesGridState = favoritesGalleryGridState,
                     onPhotoClick = { uri -> viewModel.openPhoto(uri) },
                     onFavoritePhotoClick = { uri -> viewModel.openPhoto(uri) },
                     onLikeToggle = { uri -> viewModel.toggleLike(uri) }

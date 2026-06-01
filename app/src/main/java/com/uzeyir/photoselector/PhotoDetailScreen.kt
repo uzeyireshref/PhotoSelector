@@ -173,7 +173,6 @@ fun PhotoDetailScreen(
                 currentIndex = pagerState.currentPage,
                 totalCount = photos.size,
                 strings = strings,
-                isLiked = isLiked,
                 onRotate = if (currentPhoto.mediaType == MediaType.Photo) onRotate else null,
                 onVideoFullscreen = if (currentPhoto.mediaType == MediaType.Video) {
                     {
@@ -183,7 +182,6 @@ fun PhotoDetailScreen(
                 } else {
                     null
                 },
-                onLikeToggle = { onLikeToggle(currentPhoto.uri) },
                 onBack = onBack
             )
         }
@@ -198,6 +196,8 @@ fun PhotoDetailScreen(
                 videoPayablePrice = videoPayablePrice,
                 totalPayablePrice = totalPayablePrice,
                 strings = strings,
+                isLiked = isLiked,
+                onLikeToggle = { onLikeToggle(currentPhoto.uri) },
                 onReviewClick = onReviewClick,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
@@ -211,6 +211,8 @@ fun PhotoDetailScreen(
                 videoPayablePrice = videoPayablePrice,
                 totalPayablePrice = totalPayablePrice,
                 strings = strings,
+                isLiked = isLiked,
+                onLikeToggle = { onLikeToggle(currentPhoto.uri) },
                 onReviewClick = onReviewClick,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )

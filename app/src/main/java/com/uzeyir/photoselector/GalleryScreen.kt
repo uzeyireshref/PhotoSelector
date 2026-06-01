@@ -62,7 +62,8 @@ fun GalleryScreen(
     selectedTab: GalleryTab? = null,
     onTabSelected: (GalleryTab) -> Unit = {},
     strings: LocalizedStrings,
-    gridState: LazyGridState,
+    allGridState: LazyGridState,
+    favoritesGridState: LazyGridState,
     onPhotoClick: (Uri) -> Unit,
     onFavoritePhotoClick: (Uri) -> Unit = onPhotoClick,
     onLikeToggle: (Uri) -> Unit
@@ -74,6 +75,7 @@ fun GalleryScreen(
         onTabSelected(tab)
     }
     val visibleMedia = if (activeTab == GalleryTab.All) photos else likedMediaItems
+    val gridState = if (activeTab == GalleryTab.All) allGridState else favoritesGridState
 
     Column(
         modifier = Modifier
