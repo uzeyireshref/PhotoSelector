@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 
 private const val WHATSAPP_PACKAGE = "com.whatsapp"
+private const val WHATSAPP_BUSINESS_PACKAGE = "com.whatsapp.w4b"
 private const val DOCUMENT_SHARE_MIME_TYPE = "application/octet-stream"
 
 internal data class WhatsAppDocumentShareRequest(
@@ -16,12 +17,26 @@ internal data class WhatsAppDocumentShareRequest(
 internal fun whatsAppDocumentShareRequest(files: List<FolderDocumentData>): WhatsAppDocumentShareRequest =
     WhatsAppDocumentShareRequest(uris = files.map { it.uri })
 
-internal fun whatsAppDocumentShareIntent(files: List<FolderDocumentData>): Intent {
+internal fun whatsAppPackageCandidates(): List<String> =
+    listOf(WHATSAPP_PACKAGE, WHATSAPP_BUSINESS_PACKAGE)
+
+internal fun whatsAppDocumentShareIntents(files: List<FolderDocumentData>): List<Intent> =
+    whatsAppPackageCandidates().map { packageName ->
+        whatsAppDocumentShareIntent(files, packageName = packageName)
+    }
+
+internal fun fallbackDocumentShareIntent(files: List<FolderDocumentData>): Intent =
+    whatsAppDocumentShareIntent(files, packageName = null)
+
+internal fun whatsAppDocumentShareIntent(
+    files: List<FolderDocumentData>,
+    packageName: String? = WHATSAPP_PACKAGE
+): Intent {
     val request = whatsAppDocumentShareRequest(files)
     val uris = ArrayList(request.uris)
     return Intent(Intent.ACTION_SEND_MULTIPLE).apply {
         type = request.mimeType
-        setPackage(request.packageName)
+        packageName?.let { setPackage(it) }
         putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         clipData = shareClipData(uris)

@@ -1,6 +1,7 @@
 package com.uzeyir.photoselector
 
 import android.content.Context
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -358,9 +359,8 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                     onShareWhatsApp = {
                         val files = viewModel.selectedTransferFiles(includeRawFiles = includeRawFiles)
                         if (files.isNotEmpty()) {
-                            cancellationSafeRunCatching {
-                                context.startActivity(whatsAppDocumentShareIntent(files))
-                            }.onFailure {
+                            val shared = shareDocumentsWithWhatsAppOrFallback(context, files)
+                            if (!shared) {
                                 coroutineScope.launch {
                                     snackbarHostState.showSnackbar(strings.whatsAppShareFailed)
                                 }
@@ -408,4 +408,24 @@ internal fun sdCardDcimInitialUriStringFromRootUri(rootUri: String): String? {
     if (volumeId.isBlank()) return null
     return "content://com.android.externalstorage.documents/document/${volumeId}%3ADCIM"
 }
+
+private fun shareDocumentsWithWhatsAppOrFallback(
+    context: Context,
+    files: List<FolderDocumentData>
+): Boolean {
+    whatsAppDocumentShareIntents(files).forEach { intent ->
+        if (context.startActivityIfAvailable(intent)) return true
+    }
+    return context.startActivityIfAvailable(Intent.createChooser(fallbackDocumentShareIntent(files), null))
+}
+
+private fun Context.startActivityIfAvailable(intent: Intent): Boolean =
+    try {
+        startActivity(intent)
+        true
+    } catch (_: ActivityNotFoundException) {
+        false
+    } catch (_: SecurityException) {
+        false
+    }
 

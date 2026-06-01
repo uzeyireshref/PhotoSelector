@@ -30,4 +30,12 @@ class ShareIntentsTest {
             request.uris
         )
     }
+
+    @Test
+    fun whatsAppDocumentSharePackageCandidatesIncludeBusinessVariant() {
+        assertEquals(
+            listOf("com.whatsapp", "com.whatsapp.w4b"),
+            whatsAppPackageCandidates()
+        )
+    }
 }
