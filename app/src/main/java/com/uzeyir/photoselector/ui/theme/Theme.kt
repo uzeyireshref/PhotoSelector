@@ -81,11 +81,65 @@ private val HighContrastDarkColorScheme = darkColorScheme(
     error = Color(0xFFFF8A80)
 )
 
+private val MonoLightColorScheme = lightColorScheme(
+    primary = Color(0xFF242424),
+    onPrimary = Color(0xFFFFFFFF),
+    secondary = Color(0xFF626262),
+    onSecondary = Color(0xFFFFFFFF),
+    tertiary = Color(0xFF8A735E),
+    onTertiary = Color(0xFFFFFFFF),
+    background = Color(0xFFFAFAFA),
+    onBackground = Color(0xFF202124),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF202124),
+    surfaceVariant = Color(0xFFE8EAED),
+    onSurfaceVariant = Color(0xFF3C4043),
+    outline = Color(0xFFDADCE0),
+    error = TaksimError
+)
+
+private val GallerySageColorScheme = lightColorScheme(
+    primary = Color(0xFF3D5A4B),
+    onPrimary = Color(0xFFFFFFFF),
+    secondary = Color(0xFF69756D),
+    onSecondary = Color(0xFFFFFFFF),
+    tertiary = Color(0xFF8A6F45),
+    onTertiary = Color(0xFFFFFFFF),
+    background = Color(0xFFF4F6F1),
+    onBackground = Color(0xFF1F241F),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF1F241F),
+    surfaceVariant = Color(0xFFDDE5DA),
+    onSurfaceVariant = Color(0xFF3F4A41),
+    outline = Color(0xFFB8C4B7),
+    error = TaksimError
+)
+
+private val MidnightTealColorScheme = darkColorScheme(
+    primary = Color(0xFF8FCFC3),
+    onPrimary = Color(0xFF0B2A25),
+    secondary = Color(0xFFB3C8C2),
+    onSecondary = Color(0xFF1F2D2A),
+    tertiary = Color(0xFFE2C48B),
+    onTertiary = Color(0xFF382B10),
+    background = Color(0xFF10191B),
+    onBackground = Color(0xFFE3ECEB),
+    surface = Color(0xFF192326),
+    onSurface = Color(0xFFE3ECEB),
+    surfaceVariant = Color(0xFF263336),
+    onSurfaceVariant = Color(0xFFC3D0CE),
+    outline = Color(0xFF4F6265),
+    error = Color(0xFFFFB4AB)
+)
+
 fun appColorScheme(themeOption: AppThemeOption) = when (themeOption) {
     AppThemeOption.TaksimLight -> LightColorScheme
     AppThemeOption.Dark -> DarkColorScheme
     AppThemeOption.RedWhite -> RedWhiteColorScheme
     AppThemeOption.HighContrastDark -> HighContrastDarkColorScheme
+    AppThemeOption.MonoLight -> MonoLightColorScheme
+    AppThemeOption.GallerySage -> GallerySageColorScheme
+    AppThemeOption.MidnightTeal -> MidnightTealColorScheme
 }
 
 @Composable

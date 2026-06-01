@@ -417,6 +417,9 @@ private fun AppThemeOption.adminLabel(): String = when (this) {
     AppThemeOption.Dark -> "Koyu"
     AppThemeOption.RedWhite -> "Koyu kırmızı-beyaz"
     AppThemeOption.HighContrastDark -> "Yüksek kontrast koyu"
+    AppThemeOption.MonoLight -> "Sade siyah-beyaz"
+    AppThemeOption.GallerySage -> "Galeri adaçayı"
+    AppThemeOption.MidnightTeal -> "Gece petrol"
 }
 
 private fun AppThemeOption.adminDescription(): String = when (this) {
@@ -424,4 +427,7 @@ private fun AppThemeOption.adminDescription(): String = when (this) {
     AppThemeOption.Dark -> "Koyu arka plan ve kırmızı vurgu."
     AppThemeOption.RedWhite -> "Beyaz zemin, koyu kırmızı aksan."
     AppThemeOption.HighContrastDark -> "Siyah zemin, yüksek okunabilirlik."
+    AppThemeOption.MonoLight -> "Temiz beyaz yüzeyler, siyah vurgu ve nötr metin."
+    AppThemeOption.GallerySage -> "Fotoğrafları öne çıkaran düşük doygunluklu yeşil tonlar."
+    AppThemeOption.MidnightTeal -> "Göz yormayan koyu gri-petrol yüzeyler ve yumuşak vurgu."
 }

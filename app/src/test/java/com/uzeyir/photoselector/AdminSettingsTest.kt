@@ -51,7 +51,7 @@ class AdminSettingsTest {
         val updated = AdminSettings.Default.copy(
             adminPassword = "9876",
             pricing = AdminSettings.Default.pricing.copy(photoUnitPrice = 500),
-            theme = AppThemeOption.Dark
+            theme = AppThemeOption.MidnightTeal
         )
 
         store.save(updated)

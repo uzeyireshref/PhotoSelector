@@ -118,14 +118,16 @@ fun FolderSelectionScreen(
         IconButton(
             onClick = onAdminClick,
             modifier = Modifier
+                .size(56.dp)
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
-                .padding(top = 4.dp, end = 12.dp)
+                .padding(top = 2.dp, end = 8.dp)
         ) {
             Icon(
                 imageVector = Icons.Default.Settings,
                 contentDescription = "Admin panel",
-                tint = MaterialTheme.colorScheme.onPrimary
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(30.dp)
             )
         }
     }

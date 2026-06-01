@@ -23,13 +23,33 @@ class ThemePaletteTest {
     }
 
     @Test
-    fun selectableThemesUseDifferentBackgrounds() {
-        val light = appColorScheme(AppThemeOption.TaksimLight)
-        val dark = appColorScheme(AppThemeOption.Dark)
-        val redWhite = appColorScheme(AppThemeOption.RedWhite)
-        val highContrast = appColorScheme(AppThemeOption.HighContrastDark)
+    fun selectableThemesKeepExistingThemesAndAddThreeGalleryFriendlyPalettes() {
+        assertEquals(
+            listOf(
+                AppThemeOption.TaksimLight,
+                AppThemeOption.Dark,
+                AppThemeOption.RedWhite,
+                AppThemeOption.HighContrastDark,
+                AppThemeOption.MonoLight,
+                AppThemeOption.GallerySage,
+                AppThemeOption.MidnightTeal
+            ),
+            AppThemeOption.entries
+        )
+    }
 
-        assertNotEquals(light.background, dark.background)
-        assertNotEquals(redWhite.background, highContrast.background)
+    @Test
+    fun darkThemesUseSoftDarkSurfacesInsteadOfPureBlack() {
+        val midnight = appColorScheme(AppThemeOption.MidnightTeal)
+
+        assertNotEquals(Color(0xFF000000), midnight.background)
+        assertNotEquals(Color(0xFF000000), midnight.surface)
+    }
+
+    @Test
+    fun selectableThemesUseDifferentBackgrounds() {
+        val backgrounds = AppThemeOption.entries.map { appColorScheme(it).background }.toSet()
+
+        assertEquals(AppThemeOption.entries.size, backgrounds.size)
     }
 }

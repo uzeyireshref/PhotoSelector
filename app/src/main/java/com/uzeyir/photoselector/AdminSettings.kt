@@ -6,7 +6,10 @@ enum class AppThemeOption {
     TaksimLight,
     Dark,
     RedWhite,
-    HighContrastDark
+    HighContrastDark,
+    MonoLight,
+    GallerySage,
+    MidnightTeal
 }
 
 data class AdminSettings(
