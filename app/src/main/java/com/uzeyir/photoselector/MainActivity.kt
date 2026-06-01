@@ -413,10 +413,14 @@ private fun shareDocumentsWithWhatsAppOrFallback(
     context: Context,
     files: List<FolderDocumentData>
 ): Boolean {
-    whatsAppDocumentShareIntents(files).forEach { intent ->
-        if (context.startActivityIfAvailable(intent)) return true
+    return cancellationSafeRunCatching {
+        whatsAppDocumentShareIntents(files).forEach { intent ->
+            if (context.startActivityIfAvailable(intent)) return true
+        }
+        context.startActivityIfAvailable(Intent.createChooser(fallbackDocumentShareIntent(files), null))
+    }.getOrElse {
+        false
     }
-    return context.startActivityIfAvailable(Intent.createChooser(fallbackDocumentShareIntent(files), null))
 }
 
 private fun Context.startActivityIfAvailable(intent: Intent): Boolean =
@@ -426,6 +430,8 @@ private fun Context.startActivityIfAvailable(intent: Intent): Boolean =
     } catch (_: ActivityNotFoundException) {
         false
     } catch (_: SecurityException) {
+        false
+    } catch (_: RuntimeException) {
         false
     }
 

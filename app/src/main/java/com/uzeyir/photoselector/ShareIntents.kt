@@ -45,7 +45,7 @@ internal fun whatsAppDocumentShareIntent(
 
 private fun shareClipData(uris: List<Uri>): ClipData? {
     val firstUri = uris.firstOrNull() ?: return null
-    val clipData = ClipData.newUri(null, "PhotoSelector documents", firstUri)
+    val clipData = ClipData.newRawUri("PhotoSelector documents", firstUri)
     uris.drop(1).forEach { uri ->
         clipData.addItem(ClipData.Item(uri))
     }
