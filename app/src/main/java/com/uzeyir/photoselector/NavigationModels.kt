@@ -4,10 +4,18 @@ enum class Screen {
     FolderSelection,
     Gallery,
     PhotoDetail,
-    Confirmation
+    Confirmation,
+    AdminLogin,
+    AdminPanel
 }
 
 enum class GalleryTab {
     All,
     Favorites
+}
+
+enum class AdminPanelSection {
+    Password,
+    Pricing,
+    Themes
 }

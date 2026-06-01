@@ -13,6 +13,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import com.uzeyir.photoselector.ui.theme.PhotoSelectorTheme
 import org.junit.Rule
@@ -59,7 +60,8 @@ class FolderSelectionScreenTest {
                     photos = listOf(galleryPhoto("IMG_0001.JPG")),
                     likedPhotoUris = emptySet(),
                     strings = UiText.strings(AppLanguage.Turkish),
-                    gridState = gridState,
+                    allGridState = gridState,
+                    favoritesGridState = rememberLazyGridState(),
                     onPhotoClick = {},
                     onLikeToggle = {}
                 )
@@ -81,7 +83,8 @@ class FolderSelectionScreenTest {
                     photos = listOf(favorite, other),
                     likedPhotoUris = setOf(favorite.uri),
                     strings = UiText.strings(AppLanguage.Turkish),
-                    gridState = gridState,
+                    allGridState = gridState,
+                    favoritesGridState = rememberLazyGridState(),
                     onPhotoClick = {},
                     onLikeToggle = {}
                 )
@@ -113,7 +116,8 @@ class FolderSelectionScreenTest {
                     selectedTab = GalleryTab.Favorites,
                     onTabSelected = {},
                     strings = UiText.strings(AppLanguage.Turkish),
-                    gridState = gridState,
+                    allGridState = gridState,
+                    favoritesGridState = rememberLazyGridState(),
                     onPhotoClick = {},
                     onLikeToggle = {}
                 )
@@ -132,10 +136,14 @@ class FolderSelectionScreenTest {
                 ConfirmationScreen(
                     summary = ExportSummary(selectedJpgCount = 1, matchedRawCount = 1),
                     exportStatus = ExportStatus.Success(folderName = "2026-05-30", copiedFiles = 2),
+                    includeRawFiles = true,
                     strings = UiText.strings(AppLanguage.Turkish),
                     onBack = {},
+                    onIncludeRawFilesChange = {},
+                    onShareWhatsApp = {},
                     onConfirmExport = {},
-                    onFinished = {}
+                    onReturnHome = {},
+                    onReturnToGallery = {}
                 )
             }
         }
@@ -172,10 +180,14 @@ class FolderSelectionScreenTest {
                         selectedVideoCount = 4
                     ),
                     exportStatus = ExportStatus.Idle,
+                    includeRawFiles = true,
                     strings = UiText.strings(AppLanguage.Turkish),
                     onBack = {},
+                    onIncludeRawFilesChange = {},
+                    onShareWhatsApp = {},
                     onConfirmExport = {},
-                    onFinished = {}
+                    onReturnHome = {},
+                    onReturnToGallery = {}
                 )
             }
         }
@@ -200,19 +212,17 @@ class FolderSelectionScreenTest {
                         copiedBytes = 50,
                         totalBytes = 100,
                         currentFileName = "IMG_0001.JPG",
-                        files = listOf(
-                            ExportFileProgress(
-                                fileName = "IMG_0001.JPG",
-                                state = ExportFileState.Copying,
-                                bytesCopied = 50,
-                                totalBytes = 100
-                            )
-                        )
+                        currentFileBytes = 50,
+                        currentFileTotalBytes = 100
                     ),
                     strings = UiText.strings(AppLanguage.Turkish),
+                    includeRawFiles = false,
                     onBack = {},
+                    onIncludeRawFilesChange = {},
+                    onShareWhatsApp = {},
                     onConfirmExport = {},
-                    onFinished = {}
+                    onReturnHome = {},
+                    onReturnToGallery = {}
                 )
             }
         }
@@ -220,6 +230,42 @@ class FolderSelectionScreenTest {
         composeRule.onNodeWithText("Kopyalama ilerlemesi").assertIsDisplayed()
         composeRule.onAllNodesWithText("50%").assertCountEquals(2)
         composeRule.onNodeWithText("IMG_0001.JPG").assertIsDisplayed()
+    }
+
+    @Test
+    fun startScreenShowsAdminButtonAndRejectsWrongPassword() {
+        val viewModel = PhotoViewModel()
+
+        composeRule.setContent {
+            PhotoSelectorApp(viewModel = viewModel)
+        }
+
+        composeRule.onNodeWithContentDescription("Admin panel").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Admin panel").performClick()
+        composeRule.onNodeWithText("Şifre").performTextInput("0000")
+        composeRule.onNodeWithText("Giriş").performClick()
+
+        composeRule.onNodeWithText("Şifre hatalı.").assertIsDisplayed()
+    }
+
+    @Test
+    fun correctAdminPasswordOpensDashboardAndSections() {
+        val viewModel = PhotoViewModel()
+
+        composeRule.setContent {
+            PhotoSelectorApp(viewModel = viewModel)
+        }
+
+        composeRule.onNodeWithContentDescription("Admin panel").performClick()
+        composeRule.onNodeWithText("Şifre").performTextInput("1234")
+        composeRule.onNodeWithText("Giriş").performClick()
+
+        composeRule.onNodeWithText("Fiyatlar").assertIsDisplayed()
+        composeRule.onNodeWithText("Theme-lar").assertIsDisplayed()
+        composeRule.onNodeWithText("Fiyatlar").performClick()
+        composeRule.onNodeWithText("Foto fiyatı").assertIsDisplayed()
+        composeRule.onNodeWithText("Theme-lar").performClick()
+        composeRule.onNodeWithText("Koyu").assertIsDisplayed()
     }
 
     private fun galleryPhoto(displayName: String): MediaItemData =

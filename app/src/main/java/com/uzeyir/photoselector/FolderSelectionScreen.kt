@@ -22,11 +22,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.SdStorage
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
@@ -43,14 +45,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.uzeyir.photoselector.ui.theme.TaksimPrimaryRed
-import com.uzeyir.photoselector.ui.theme.TaksimDarkBackground
-import com.uzeyir.photoselector.ui.theme.TaksimTextDark
-import com.uzeyir.photoselector.ui.theme.TaksimLightBackground
-import com.uzeyir.photoselector.ui.theme.TaksimBurgundy
 import com.uzeyir.photoselector.ui.theme.TaksimSuccess
-import com.uzeyir.photoselector.ui.theme.TaksimSurfaceLight
-import com.uzeyir.photoselector.ui.theme.TaksimWarmAccent
 
 @Composable
 fun FolderSelectionScreen(
@@ -61,7 +56,8 @@ fun FolderSelectionScreen(
     language: AppLanguage,
     onLanguageSelected: (AppLanguage) -> Unit,
     strings: LocalizedStrings,
-    onCheckUpdate: () -> Unit
+    onCheckUpdate: () -> Unit,
+    onAdminClick: () -> Unit = {}
 ) {
     val startSubtitle = when (language) {
         AppLanguage.Turkish -> "Fotoğraf ve videolarınızı seçmek için kaynak klasörü açın."
@@ -78,9 +74,9 @@ fun FolderSelectionScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        TaksimDarkBackground,
-                        TaksimPrimaryRed,
-                        TaksimLightBackground
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.primary,
+                        MaterialTheme.colorScheme.surface
                     )
                 )
             )
@@ -119,6 +115,19 @@ fun FolderSelectionScreen(
                 .align(Alignment.TopCenter)
                 .statusBarsPadding()
         )
+        IconButton(
+            onClick = onAdminClick,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(top = 4.dp, end = 12.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "Admin panel",
+                tint = MaterialTheme.colorScheme.onPrimary
+            )
+        }
     }
 }
 
@@ -137,7 +146,7 @@ private fun StartScreenPanel(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = TaksimSurfaceLight.copy(alpha = 0.96f),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
         tonalElevation = 2.dp,
         shadowElevation = 12.dp,
         shape = RoundedCornerShape(8.dp)
@@ -151,13 +160,13 @@ private fun StartScreenPanel(
             Text(
                 text = title,
                 style = MaterialTheme.typography.headlineSmall,
-                color = TaksimTextDark
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodyMedium,
-                color = TaksimBurgundy,
+                color = MaterialTheme.colorScheme.secondary,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(24.dp))
@@ -166,8 +175,8 @@ private fun StartScreenPanel(
                 enabled = !isLoadingMedia,
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = TaksimPrimaryRed,
-                    contentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -183,7 +192,7 @@ private fun StartScreenPanel(
                 enabled = !isLoadingMedia,
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = TaksimPrimaryRed
+                    contentColor = MaterialTheme.colorScheme.primary
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -197,7 +206,7 @@ private fun StartScreenPanel(
             Text(
                 text = storageHint,
                 style = MaterialTheme.typography.labelMedium,
-                color = TaksimBurgundy
+                color = MaterialTheme.colorScheme.secondary
             )
             Spacer(modifier = Modifier.height(22.dp))
             if (isLoadingMedia) {
@@ -218,20 +227,20 @@ private fun StartScreenPanel(
 private fun StartScreenMark() {
     Surface(
         modifier = Modifier.size(72.dp),
-        color = TaksimPrimaryRed,
+        color = MaterialTheme.colorScheme.primary,
         shape = CircleShape,
         shadowElevation = 4.dp
     ) {
         Box(contentAlignment = Alignment.Center) {
             Surface(
                 modifier = Modifier.size(44.dp),
-                color = Color.White.copy(alpha = 0.18f),
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.18f),
                 shape = RoundedCornerShape(8.dp)
             ) {}
             Icon(
                 imageVector = Icons.Default.PhotoLibrary,
                 contentDescription = null,
-                tint = TaksimWarmAccent,
+                tint = MaterialTheme.colorScheme.tertiary,
                 modifier = Modifier.size(34.dp)
             )
         }

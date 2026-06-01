@@ -42,6 +42,8 @@ class PhotoViewModel(
         private set
     var galleryTab by mutableStateOf(GalleryTab.All)
         private set
+    var adminPanelSection by mutableStateOf(AdminPanelSection.Password)
+        private set
     var pendingReturnToFolderConfirmation by mutableStateOf(false)
         private set
     var language by mutableStateOf(savedLanguage())
@@ -49,6 +51,8 @@ class PhotoViewModel(
     var includeRawFiles by mutableStateOf(savedStateHandle[KEY_INCLUDE_RAW_FILES] ?: true)
         private set
     var updateStatus by mutableStateOf(savedUpdateStatus())
+        private set
+    var adminSettings by mutableStateOf(AdminSettings.Default)
         private set
     private var lastFolderRestoreAttempted by mutableStateOf(
         savedStateHandle[KEY_LAST_FOLDER_RESTORE_ATTEMPTED] ?: false
@@ -88,7 +92,8 @@ class PhotoViewModel(
     private val selectionPricing: SelectionPricing
         get() = SelectionPricing(
             photoCount = selectedPhotoCount,
-            videoCount = selectedVideoCount
+            videoCount = selectedVideoCount,
+            settings = adminSettings.pricing
         )
 
     val selectedPhotoCount: Int
@@ -143,6 +148,10 @@ class PhotoViewModel(
         galleryTab = tab
     }
 
+    fun selectAdminPanelSection(section: AdminPanelSection) {
+        adminPanelSection = section
+    }
+
     fun shouldRestoreLastFolderOnStartup(): Boolean =
         !lastFolderRestoreAttempted &&
             currentScreen == Screen.FolderSelection &&
@@ -167,6 +176,33 @@ class PhotoViewModel(
         updateStatus = status
         savedStateHandle[KEY_UPDATE_STATUS] = status.savedName
         savedStateHandle[KEY_UPDATE_VERSION_NAME] = (status as? AppUpdateStatus.Available)?.versionName
+    }
+
+    fun replaceAdminSettings(settings: AdminSettings) {
+        adminSettings = settings
+    }
+
+    fun authenticateAdmin(password: String): Boolean =
+        password == adminSettings.adminPassword
+
+    fun changeAdminPassword(currentPassword: String, newPassword: String, repeatedPassword: String): Boolean {
+        if (!adminSettings.canChangePassword(currentPassword, newPassword, repeatedPassword)) return false
+        adminSettings = adminSettings.copy(adminPassword = newPassword)
+        return true
+    }
+
+    fun updatePricingSettings(pricingSettings: PricingSettings): Boolean {
+        if (!pricingSettings.isValid()) return false
+        adminSettings = adminSettings.copy(pricing = pricingSettings)
+        return true
+    }
+
+    fun resetPricingSettings() {
+        adminSettings = adminSettings.copy(pricing = PricingSettings.Default)
+    }
+
+    fun selectTheme(theme: AppThemeOption) {
+        adminSettings = adminSettings.copy(theme = theme)
     }
 
     fun goToConfirmationOrWarn(): Boolean {
@@ -204,6 +240,7 @@ class PhotoViewModel(
             Screen.Gallery -> Screen.FolderSelection
             Screen.PhotoDetail -> Screen.Gallery
             Screen.Confirmation -> Screen.Gallery
+            Screen.AdminLogin, Screen.AdminPanel -> Screen.FolderSelection
         }
         return true
     }

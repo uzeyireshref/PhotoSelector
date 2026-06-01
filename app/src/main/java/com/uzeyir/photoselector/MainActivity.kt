@@ -52,14 +52,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            PhotoSelectorTheme(dynamicColor = false) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    PhotoSelectorApp()
-                }
-            }
+            PhotoSelectorApp()
         }
     }
 }
@@ -83,11 +76,21 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
     val updateStatus = viewModel.updateStatus
     val language = viewModel.language
     val includeRawFiles = viewModel.includeRawFiles
+    val adminSettings = viewModel.adminSettings
+    val adminPanelSection = viewModel.adminPanelSection
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val updateRepository = remember { GitHubUpdateRepository() }
     val lastFolderStore = remember(context) {
         SharedPreferencesLastFolderStore(
+            context.getSharedPreferences(
+                SharedPreferencesLastFolderStore.PREFERENCES_NAME,
+                Context.MODE_PRIVATE
+            )
+        )
+    }
+    val adminSettingsStore = remember(context) {
+        SharedPreferencesAdminSettingsStore(
             context.getSharedPreferences(
                 SharedPreferencesLastFolderStore.PREFERENCES_NAME,
                 Context.MODE_PRIVATE
@@ -104,6 +107,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
         when (currentScreen) {
             Screen.PhotoDetail, Screen.Confirmation -> viewModel.handleBack()
             Screen.Gallery -> viewModel.requestReturnToFolderSelection()
+            Screen.AdminLogin, Screen.AdminPanel -> viewModel.navigateTo(Screen.FolderSelection)
             Screen.FolderSelection -> Unit
         }
     }
@@ -122,6 +126,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
     }
 
     LaunchedEffect(Unit) {
+        viewModel.replaceAdminSettings(adminSettingsStore.load())
         if (!viewModel.shouldRestoreLastFolderOnStartup()) return@LaunchedEffect
         viewModel.markLastFolderRestoreAttempted()
         val persistedPermissions = context.contentResolver.persistedUriPermissions
@@ -259,7 +264,12 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
         )
     }
 
-    Scaffold(
+    PhotoSelectorTheme(dynamicColor = false, themeOption = adminSettings.theme) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
@@ -281,7 +291,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                     )
                 }
             }
-    ) { innerPadding ->
+            ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
             when (currentScreen) {
                 Screen.FolderSelection -> FolderSelectionScreen(
@@ -314,7 +324,8 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                                 viewModel.replaceUpdateStatus(AppUpdateStatus.Error)
                             }
                         }
-                    }
+                    },
+                    onAdminClick = { viewModel.navigateTo(Screen.AdminLogin) }
                 )
                 Screen.Gallery -> GalleryScreen(
                     photos = photos,
@@ -386,6 +397,44 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                     onReturnHome = { viewModel.returnHomeAfterExport() },
                     onReturnToGallery = { viewModel.returnToGalleryAfterExport() }
                 )
+                Screen.AdminLogin -> AdminLoginScreen(
+                    strings = strings,
+                    onBack = { viewModel.navigateTo(Screen.FolderSelection) },
+                    onLogin = { password ->
+                        val authenticated = viewModel.authenticateAdmin(password)
+                        if (authenticated) {
+                            viewModel.navigateTo(Screen.AdminPanel)
+                        }
+                        authenticated
+                    }
+                )
+                Screen.AdminPanel -> AdminPanelScreen(
+                    settings = adminSettings,
+                    selectedSection = adminPanelSection,
+                    strings = strings,
+                    onBackHome = { viewModel.navigateTo(Screen.FolderSelection) },
+                    onSectionSelected = { viewModel.selectAdminPanelSection(it) },
+                    onChangePassword = { currentPassword, newPassword, repeatedPassword ->
+                        val changed = viewModel.changeAdminPassword(currentPassword, newPassword, repeatedPassword)
+                        if (changed) adminSettingsStore.save(viewModel.adminSettings)
+                        changed
+                    },
+                    onSavePricing = { pricing ->
+                        val saved = viewModel.updatePricingSettings(pricing)
+                        if (saved) adminSettingsStore.save(viewModel.adminSettings)
+                        saved
+                    },
+                    onResetPricing = {
+                        viewModel.resetPricingSettings()
+                        adminSettingsStore.save(viewModel.adminSettings)
+                    },
+                    onThemeSelected = { theme ->
+                        viewModel.selectTheme(theme)
+                        adminSettingsStore.save(viewModel.adminSettings)
+                    }
+                )
+            }
+        }
             }
         }
     }

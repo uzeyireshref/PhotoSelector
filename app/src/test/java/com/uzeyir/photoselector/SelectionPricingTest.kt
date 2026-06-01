@@ -141,4 +141,47 @@ class SelectionPricingTest {
         assertEquals(3800, viewModel.videoDisplayPrice)
         assertEquals(4940, viewModel.totalDisplayPrice)
     }
+
+    @Test
+    fun customPriceLimitCapsPayablePriceAtConfiguredCount() {
+        val pricing = SelectionPricing(
+            photoCount = 8,
+            videoCount = 0,
+            settings = PricingSettings(
+                photoUnitPrice = 300,
+                videoUnitPrice = 1000,
+                priceLimitCount = 5,
+                discountTiers = listOf(
+                    PricingDiscountTier(itemCount = 5, discountPercent = 20)
+                )
+            )
+        )
+
+        assertEquals(2400, pricing.photoBasePrice)
+        assertEquals(1200, pricing.photoDisplayPrice)
+        assertEquals(1200, pricing.photoDiscount)
+    }
+
+    @Test
+    fun customDiscountTiersDrivePhotoAndVideoPricingSeparately() {
+        val pricing = SelectionPricing(
+            photoCount = 6,
+            videoCount = 6,
+            settings = PricingSettings(
+                photoUnitPrice = 400,
+                videoUnitPrice = 1200,
+                priceLimitCount = 15,
+                discountTiers = listOf(
+                    PricingDiscountTier(itemCount = 3, discountPercent = 10),
+                    PricingDiscountTier(itemCount = 6, discountPercent = 25)
+                )
+            )
+        )
+
+        assertEquals(2400, pricing.photoBasePrice)
+        assertEquals(1800, pricing.photoDisplayPrice)
+        assertEquals(7200, pricing.videoBasePrice)
+        assertEquals(5400, pricing.videoDisplayPrice)
+        assertEquals(7200, pricing.totalDisplayPrice)
+    }
 }

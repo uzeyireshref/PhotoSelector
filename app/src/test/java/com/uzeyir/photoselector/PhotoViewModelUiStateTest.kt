@@ -25,6 +25,29 @@ class PhotoViewModelUiStateTest {
     }
 
     @Test
+    fun adminPricingSettingsDriveViewModelPrices() {
+        val viewModel = PhotoViewModel()
+        val photos = testPhotos(8)
+        viewModel.setPhotos(photos)
+        viewModel.replaceAdminSettings(
+            AdminSettings.Default.copy(
+                pricing = PricingSettings(
+                    photoUnitPrice = 500,
+                    videoUnitPrice = 1000,
+                    priceLimitCount = 5,
+                    discountTiers = listOf(PricingDiscountTier(itemCount = 5, discountPercent = 20))
+                )
+            )
+        )
+
+        photos.forEach { viewModel.toggleLike(it.uri) }
+
+        assertEquals(4000, viewModel.photoBasePrice)
+        assertEquals(2000, viewModel.photoDisplayPrice)
+        assertEquals(2000, viewModel.totalDisplayPrice)
+    }
+
+    @Test
     fun cancellationSafeRunCatchingRethrowsCancellationException() {
         assertThrows(CancellationException::class.java) {
             cancellationSafeRunCatching {

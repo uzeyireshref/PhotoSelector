@@ -1,32 +1,35 @@
 package com.uzeyir.photoselector
 
 import androidx.compose.ui.graphics.Color
-import com.uzeyir.photoselector.ui.theme.StudioDarkBackground
-import com.uzeyir.photoselector.ui.theme.StudioFavorite
-import com.uzeyir.photoselector.ui.theme.StudioGreen
-import com.uzeyir.photoselector.ui.theme.StudioInk
-import com.uzeyir.photoselector.ui.theme.StudioPaper
-import com.uzeyir.photoselector.ui.theme.StudioSage
-import com.uzeyir.photoselector.ui.theme.StudioSuccess
-import com.uzeyir.photoselector.ui.theme.StudioSurface
-import com.uzeyir.photoselector.ui.theme.StudioSurfaceVariant
-import com.uzeyir.photoselector.ui.theme.StudioWarmAccent
+import com.uzeyir.photoselector.ui.theme.TaksimDarkBackground
+import com.uzeyir.photoselector.ui.theme.TaksimLightBackground
+import com.uzeyir.photoselector.ui.theme.TaksimPrimaryRed
+import com.uzeyir.photoselector.ui.theme.TaksimSurfaceDark
+import com.uzeyir.photoselector.ui.theme.TaksimSurfaceLight
+import com.uzeyir.photoselector.ui.theme.appColorScheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 class ThemePaletteTest {
 
     @Test
     fun brandPaletteMatchesAppLogoColors() {
-        assertEquals(Color(0xFF1A0B0D), StudioInk)
-        assertEquals(Color(0xFF7A0712), StudioGreen)
-        assertEquals(Color(0xFF7B5B5D), StudioSage)
-        assertEquals(Color(0xFFF7F1EA), StudioPaper)
-        assertEquals(Color(0xFFFFFBF6), StudioSurface)
-        assertEquals(Color(0xFFF0E2DD), StudioSurfaceVariant)
-        assertEquals(Color(0xFF140608), StudioDarkBackground)
-        assertEquals(Color(0xFFC71824), StudioFavorite)
-        assertEquals(Color(0xFFB88A4A), StudioSuccess)
-        assertEquals(Color(0xFFFFE0A8), StudioWarmAccent)
+        assertEquals(Color(0xFFC62828), TaksimPrimaryRed)
+        assertEquals(Color(0xFF120405), TaksimDarkBackground)
+        assertEquals(Color(0xFFFDFCFB), TaksimLightBackground)
+        assertEquals(Color(0xFF26080B), TaksimSurfaceDark)
+        assertEquals(Color(0xFFF5EBEB), TaksimSurfaceLight)
+    }
+
+    @Test
+    fun selectableThemesUseDifferentBackgrounds() {
+        val light = appColorScheme(AppThemeOption.TaksimLight)
+        val dark = appColorScheme(AppThemeOption.Dark)
+        val redWhite = appColorScheme(AppThemeOption.RedWhite)
+        val highContrast = appColorScheme(AppThemeOption.HighContrastDark)
+
+        assertNotEquals(light.background, dark.background)
+        assertNotEquals(redWhite.background, highContrast.background)
     }
 }
