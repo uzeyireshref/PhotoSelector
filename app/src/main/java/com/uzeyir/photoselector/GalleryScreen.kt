@@ -2,6 +2,7 @@ package com.uzeyir.photoselector
 
 import android.net.Uri
 import android.graphics.Bitmap
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -144,6 +145,7 @@ fun GalleryScreen(
                             isLiked = likedPhotoUris.contains(photo.uri),
                             strings = strings,
                             thumbnailSizePx = thumbnailSizePx,
+                            loadHighQualityThumbnail = shouldLoadHighQualityGalleryThumbnail(gridState.isScrollInProgress),
                             onClick = {
                                 if (activeTab == GalleryTab.Favorites) {
                                     onFavoritePhotoClick(photo.uri)
@@ -239,15 +241,19 @@ fun PhotoItem(
     isLiked: Boolean,
     strings: LocalizedStrings,
     thumbnailSizePx: Int = 512,
+    loadHighQualityThumbnail: Boolean = true,
     onClick: () -> Unit,
     onLikeToggle: () -> Unit
 ) {
     val context = LocalContext.current
     var fastThumbnail by remember(media.uri) { mutableStateOf<Bitmap?>(null) }
     val thumbnailRequest = remember(media.uri, thumbnailSizePx) {
+        val cacheKey = fastThumbnailCacheKey(media.uri.toString(), GALLERY_HIGH_QUALITY_IMAGE_SIZE_PX)
         ImageRequest.Builder(context)
             .data(media.uri)
             .size(GALLERY_HIGH_QUALITY_IMAGE_SIZE_PX)
+            .memoryCacheKey(cacheKey)
+            .diskCacheKey(cacheKey)
             .crossfade(true)
             .build()
     }
@@ -296,13 +302,29 @@ fun PhotoItem(
                     )
                 }
             } else {
-                AsyncImage(
-                    model = thumbnailRequest,
-                    contentDescription = media.displayName,
-                    placeholder = fastThumbnailPainter,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    if (fastThumbnailPainter != null) {
+                        Image(
+                            painter = fastThumbnailPainter,
+                            contentDescription = media.displayName,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                    if (loadHighQualityThumbnail) {
+                        AsyncImage(
+                            model = thumbnailRequest,
+                            contentDescription = media.displayName,
+                            placeholder = fastThumbnailPainter,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                }
             }
             IconButton(
                 onClick = onLikeToggle,

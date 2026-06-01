@@ -14,7 +14,21 @@ class SafThumbnailUtilsTest {
 
     @Test
     fun galleryHighQualityImageRequestUsesFixedSize() {
-        assertEquals(1024, GALLERY_HIGH_QUALITY_IMAGE_SIZE_PX)
+        assertEquals(512, GALLERY_HIGH_QUALITY_IMAGE_SIZE_PX)
+    }
+
+    @Test
+    fun highQualityDecodeWaitsUntilGridIsIdle() {
+        assertEquals(false, shouldLoadHighQualityGalleryThumbnail(isScrollInProgress = true))
+        assertEquals(true, shouldLoadHighQualityGalleryThumbnail(isScrollInProgress = false))
+    }
+
+    @Test
+    fun fastThumbnailCacheKeyIncludesUriAndSize() {
+        assertEquals(
+            "content://folder/photo.jpg#320",
+            fastThumbnailCacheKey(uri = "content://folder/photo.jpg", sizePx = 320)
+        )
     }
 
     @Test
