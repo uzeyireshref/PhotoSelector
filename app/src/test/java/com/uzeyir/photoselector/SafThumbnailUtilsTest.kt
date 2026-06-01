@@ -19,8 +19,27 @@ class SafThumbnailUtilsTest {
 
     @Test
     fun highQualityDecodeWaitsUntilGridIsIdle() {
-        assertEquals(false, shouldLoadHighQualityGalleryThumbnail(isScrollInProgress = true))
-        assertEquals(true, shouldLoadHighQualityGalleryThumbnail(isScrollInProgress = false))
+        assertEquals(
+            false,
+            shouldRequestHighQualityGalleryThumbnail(
+                isScrollInProgress = true,
+                hasCachedHighQualityThumbnail = false
+            )
+        )
+        assertEquals(
+            true,
+            shouldRequestHighQualityGalleryThumbnail(
+                isScrollInProgress = false,
+                hasCachedHighQualityThumbnail = false
+            )
+        )
+        assertEquals(
+            false,
+            shouldRequestHighQualityGalleryThumbnail(
+                isScrollInProgress = false,
+                hasCachedHighQualityThumbnail = true
+            )
+        )
     }
 
     @Test
@@ -28,6 +47,14 @@ class SafThumbnailUtilsTest {
         assertEquals(
             "content://folder/photo.jpg#320",
             fastThumbnailCacheKey(uri = "content://folder/photo.jpg", sizePx = 320)
+        )
+    }
+
+    @Test
+    fun highQualityThumbnailCacheKeyIsStableAndSeparateFromFastThumbnail() {
+        assertEquals(
+            "content://folder/photo.jpg#high-quality#512",
+            highQualityGalleryThumbnailCacheKey(uri = "content://folder/photo.jpg")
         )
     }
 

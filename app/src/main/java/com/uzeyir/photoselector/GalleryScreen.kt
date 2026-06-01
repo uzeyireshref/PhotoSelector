@@ -46,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -145,7 +146,7 @@ fun GalleryScreen(
                             isLiked = likedPhotoUris.contains(photo.uri),
                             strings = strings,
                             thumbnailSizePx = thumbnailSizePx,
-                            loadHighQualityThumbnail = shouldLoadHighQualityGalleryThumbnail(gridState.isScrollInProgress),
+                            isScrollInProgress = gridState.isScrollInProgress,
                             onClick = {
                                 if (activeTab == GalleryTab.Favorites) {
                                     onFavoritePhotoClick(photo.uri)
@@ -241,14 +242,17 @@ fun PhotoItem(
     isLiked: Boolean,
     strings: LocalizedStrings,
     thumbnailSizePx: Int = 512,
-    loadHighQualityThumbnail: Boolean = true,
+    isScrollInProgress: Boolean = false,
     onClick: () -> Unit,
     onLikeToggle: () -> Unit
 ) {
     val context = LocalContext.current
     var fastThumbnail by remember(media.uri) { mutableStateOf<Bitmap?>(null) }
+    var highQualityThumbnailPainter by remember(media.uri) {
+        mutableStateOf<Painter?>(cachedHighQualityGalleryThumbnailPainter(media.uri))
+    }
     val thumbnailRequest = remember(media.uri, thumbnailSizePx) {
-        val cacheKey = fastThumbnailCacheKey(media.uri.toString(), GALLERY_HIGH_QUALITY_IMAGE_SIZE_PX)
+        val cacheKey = highQualityGalleryThumbnailCacheKey(media.uri.toString())
         ImageRequest.Builder(context)
             .data(media.uri)
             .size(GALLERY_HIGH_QUALITY_IMAGE_SIZE_PX)
@@ -315,11 +319,28 @@ fun PhotoItem(
                             contentScale = ContentScale.Crop
                         )
                     }
-                    if (loadHighQualityThumbnail) {
+                    if (highQualityThumbnailPainter != null) {
+                        Image(
+                            painter = highQualityThumbnailPainter!!,
+                            contentDescription = media.displayName,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                    if (
+                        shouldRequestHighQualityGalleryThumbnail(
+                            isScrollInProgress = isScrollInProgress,
+                            hasCachedHighQualityThumbnail = highQualityThumbnailPainter != null
+                        )
+                    ) {
                         AsyncImage(
                             model = thumbnailRequest,
                             contentDescription = media.displayName,
                             placeholder = fastThumbnailPainter,
+                            onSuccess = { state ->
+                                highQualityThumbnailPainter = state.painter
+                                cacheHighQualityGalleryThumbnailPainter(media.uri, state.painter)
+                            },
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
