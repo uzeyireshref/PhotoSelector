@@ -38,4 +38,10 @@ class ShareIntentsTest {
             whatsAppPackageCandidates()
         )
     }
+
+    @Test
+    fun documentShareCacheFileNameKeepsExtensionAndRemovesPathSeparators() {
+        assertEquals("001_IMG_0001.JPG", documentShareCacheFileName("../IMG/0001.JPG", 0))
+        assertEquals("012_IMG_0001.CR3", documentShareCacheFileName("IMG_0001.CR3", 11))
+    }
 }

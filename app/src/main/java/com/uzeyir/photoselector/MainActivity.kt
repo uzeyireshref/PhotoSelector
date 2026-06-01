@@ -359,9 +359,12 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                     onShareWhatsApp = {
                         val files = viewModel.selectedTransferFiles(includeRawFiles = includeRawFiles)
                         if (files.isNotEmpty()) {
-                            val shared = shareDocumentsWithWhatsAppOrFallback(context, files)
-                            if (!shared) {
-                                coroutineScope.launch {
+                            coroutineScope.launch {
+                                val shared = cancellationSafeRunCatching {
+                                    val documentFiles = prepareWhatsAppDocumentShareFiles(context, files)
+                                    shareDocumentsWithWhatsAppOrFallback(context, documentFiles)
+                                }.getOrDefault(false)
+                                if (!shared) {
                                     snackbarHostState.showSnackbar(strings.whatsAppShareFailed)
                                 }
                             }

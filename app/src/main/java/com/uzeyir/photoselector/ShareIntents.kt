@@ -1,12 +1,18 @@
 package com.uzeyir.photoselector
 
 import android.content.ClipData
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.core.content.FileProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 
 private const val WHATSAPP_PACKAGE = "com.whatsapp"
 private const val WHATSAPP_BUSINESS_PACKAGE = "com.whatsapp.w4b"
-private const val DOCUMENT_SHARE_MIME_TYPE = "application/octet-stream"
+internal const val DOCUMENT_SHARE_MIME_TYPE = "application/octet-stream"
+private const val DOCUMENT_SHARE_CACHE_DIR = "whatsapp-documents"
 
 internal data class WhatsAppDocumentShareRequest(
     val uris: List<Uri>,
@@ -27,6 +33,48 @@ internal fun whatsAppDocumentShareIntents(files: List<FolderDocumentData>): List
 
 internal fun fallbackDocumentShareIntent(files: List<FolderDocumentData>): Intent =
     whatsAppDocumentShareIntent(files, packageName = null)
+
+suspend fun prepareWhatsAppDocumentShareFiles(
+    context: Context,
+    files: List<FolderDocumentData>
+): List<FolderDocumentData> = withContext(Dispatchers.IO) {
+    val shareDir = File(context.cacheDir, DOCUMENT_SHARE_CACHE_DIR).apply {
+        deleteRecursively()
+        mkdirs()
+    }
+
+    files.mapIndexed { index, file ->
+        val outputFile = File(shareDir, documentShareCacheFileName(file.displayName, index))
+        context.contentResolver.openInputStream(file.uri).use { input ->
+            requireNotNull(input) { "Could not open ${file.displayName}" }
+            outputFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+        FolderDocumentData(
+            uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.documentshareprovider",
+                outputFile
+            ),
+            displayName = file.displayName,
+            mimeType = DOCUMENT_SHARE_MIME_TYPE,
+            lastModified = file.lastModified,
+            sizeBytes = outputFile.length()
+        )
+    }
+}
+
+internal fun documentShareCacheFileName(displayName: String, index: Int): String {
+    val safeName = displayName
+        .replace('\\', '_')
+        .replace('/', '_')
+        .replace(Regex("[^A-Za-z0-9._-]"), "_")
+        .trim()
+        .trim('.', '_')
+        .ifBlank { "document" }
+    return "${(index + 1).toString().padStart(3, '0')}_$safeName"
+}
 
 internal fun whatsAppDocumentShareIntent(
     files: List<FolderDocumentData>,

@@ -35,6 +35,15 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+        <provider
+            android:name=".DocumentShareFileProvider"
+            android:authorities="${applicationId}.documentshareprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/document_share_paths" />
+        </provider>
     </application>
 
 </manifest>
