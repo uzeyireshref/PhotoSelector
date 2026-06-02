@@ -10,10 +10,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -36,11 +33,7 @@ fun BottomPriceBar(
     buttonText: String,
     strings: LocalizedStrings
 ) {
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 6.dp,
-        shadowElevation = 8.dp
-    ) {
+    PremiumBottomBar {
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
@@ -107,9 +100,8 @@ private fun PhoneBottomPriceBarContent(
             strings = strings,
             modifier = Modifier.weight(1f)
         )
-        Button(
+        PremiumPrimaryButton(
             onClick = onReviewClick,
-            shape = RoundedCornerShape(8.dp),
             contentPadding = PaddingValues(horizontal = 22.dp, vertical = 14.dp)
         ) {
             Text(buttonText, fontWeight = FontWeight.SemiBold)
@@ -151,9 +143,8 @@ private fun TabletBottomPriceBarContent(
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Button(
+            PremiumPrimaryButton(
                 onClick = onReviewClick,
-                shape = RoundedCornerShape(8.dp),
                 contentPadding = PaddingValues(horizontal = 30.dp, vertical = 16.dp),
                 modifier = Modifier
                     .widthIn(min = 240.dp)
@@ -192,10 +183,14 @@ internal fun CompactPriceSummary(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(22.dp)
 ) {
-    Surface(
-        color = containerColor,
-        shape = RoundedCornerShape(8.dp),
-        modifier = modifier
+    PremiumPriceSummaryCard(
+        modifier = modifier,
+        color = if (containerColor == Color.Transparent) {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
+        } else {
+            containerColor
+        },
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
     ) {
         Row(
             modifier = Modifier.padding(contentPadding),

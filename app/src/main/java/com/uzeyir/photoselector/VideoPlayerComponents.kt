@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Pause
@@ -49,8 +48,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import com.uzeyir.photoselector.ui.theme.TaksimSurfaceDark
-import com.uzeyir.photoselector.ui.theme.TaksimBurgundy
+import com.uzeyir.photoselector.ui.theme.PremiumSurfaceOverlay
 import androidx.media3.common.MediaItem as PlayerMediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
@@ -149,7 +147,7 @@ fun VideoPoster(
             onClick = onPlay,
             modifier = Modifier.size(84.dp),
             colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = TaksimSurfaceDark.copy(alpha = 0.74f),
+                containerColor = PremiumSurfaceOverlay,
                 contentColor = Color.White
             )
         ) {
@@ -246,7 +244,7 @@ fun VideoFullscreenPlayer(
 
         if (shouldShowFullscreenVideoLoading(playbackState)) {
             Surface(
-                color = TaksimSurfaceDark.copy(alpha = 0.76f),
+                color = PremiumSurfaceOverlay,
                 shape = CircleShape,
                 modifier = Modifier.size(72.dp)
             ) {
@@ -267,7 +265,7 @@ fun VideoFullscreenPlayer(
                 .statusBarsPadding()
                 .padding(top = 12.dp, end = 16.dp),
             colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = TaksimSurfaceDark.copy(alpha = 0.74f),
+                containerColor = PremiumSurfaceOverlay,
                 contentColor = Color.White
             )
         ) {
@@ -307,9 +305,8 @@ fun VideoPlaybackControls(
     onSeekTo: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        color = TaksimBurgundy.copy(alpha = 0.82f),
-        shape = RoundedCornerShape(8.dp),
+    PremiumPriceSummaryCard(
+        color = PremiumSurfaceOverlay,
         modifier = modifier.fillMaxWidth()
     ) {
         Row(

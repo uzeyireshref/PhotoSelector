@@ -11,15 +11,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -52,14 +48,15 @@ fun ConfirmationScreen(
 ) {
     val rawFilesToTransfer = if (includeRawFiles) summary.matchedRawCount else 0
     val totalTransferFiles = summary.selectedJpgCount + summary.selectedVideoCount + rawFilesToTransfer
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(32.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    PremiumScreenBackground {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(32.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
         Text(strings.finalConfirmation, style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(20.dp))
         ConfirmationSummaryCard(
@@ -97,19 +94,18 @@ fun ConfirmationScreen(
                             )
                         )
                     }
-                    Button(
+                    PremiumPrimaryButton(
                         onClick = onShareWhatsApp,
                         enabled = totalTransferFiles > 0,
-                        shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.widthIn(min = 320.dp, max = 420.dp)
                     ) {
                         Text(strings.whatsAppDocumentShare)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedButton(onClick = onBack) {
+                        PremiumOutlinedButton(onClick = onBack) {
                             Text(strings.back)
                         }
-                        Button(
+                        PremiumPrimaryButton(
                             onClick = onConfirmExport,
                             enabled = totalTransferFiles > 0
                         ) {
@@ -134,10 +130,10 @@ fun ConfirmationScreen(
                 Text(strings.copiedFileCount(exportStatus.copiedFiles))
                 Spacer(modifier = Modifier.height(20.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = onReturnHome) {
+                    PremiumOutlinedButton(onClick = onReturnHome) {
                         Text(strings.returnHome)
                     }
-                    Button(onClick = onReturnToGallery) {
+                    PremiumPrimaryButton(onClick = onReturnToGallery) {
                         Text(strings.returnToGallery)
                     }
                 }
@@ -149,14 +145,15 @@ fun ConfirmationScreen(
                 Text(strings.message(exportStatus.message, exportStatus.argument), color = MaterialTheme.colorScheme.error)
                 Spacer(modifier = Modifier.height(20.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = onBack) {
+                    PremiumOutlinedButton(onClick = onBack) {
                         Text(strings.back)
                     }
-                    Button(onClick = onConfirmExport) {
+                    PremiumPrimaryButton(onClick = onConfirmExport) {
                         Text(strings.retry)
                     }
                 }
             }
+        }
         }
     }
 }
@@ -171,11 +168,7 @@ private fun ConfirmationSummaryCard(
     strings: LocalizedStrings,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp,
-        shadowElevation = 1.dp,
-        shape = RoundedCornerShape(8.dp),
+    PremiumCard(
         modifier = modifier
     ) {
         Column(
@@ -236,10 +229,7 @@ private fun CopyProgressPanel(
     strings: LocalizedStrings,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp,
-        shape = RoundedCornerShape(8.dp),
+    PremiumCard(
         modifier = modifier
     ) {
         Column(
@@ -277,9 +267,8 @@ private fun CurrentFileProgress(
     fileName: String,
     progress: Float?
 ) {
-    Surface(
+    PremiumPriceSummaryCard(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.56f),
-        shape = RoundedCornerShape(8.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(

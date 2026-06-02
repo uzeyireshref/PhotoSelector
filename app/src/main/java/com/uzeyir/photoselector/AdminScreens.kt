@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -23,16 +22,10 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -57,17 +50,16 @@ fun AdminLoginScreen(
     var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Surface(
-            shape = RoundedCornerShape(8.dp),
-            tonalElevation = 2.dp,
+    PremiumScreenBackground(contentAlignment = Alignment.Center) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+        PremiumCard(
             modifier = Modifier.widthIn(min = 320.dp, max = 420.dp)
         ) {
             Column(
@@ -75,15 +67,15 @@ fun AdminLoginScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(34.dp))
+                PremiumIconBadge(Icons.Default.Lock, contentDescription = null)
                 Text("Admin panel", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-                OutlinedTextField(
+                PremiumTextField(
                     value = password,
                     onValueChange = {
                         password = it.filter(Char::isDigit)
                         error = null
                     },
-                    label = { Text("Şifre") },
+                    label = "Şifre",
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                     singleLine = true,
@@ -91,7 +83,7 @@ fun AdminLoginScreen(
                     supportingText = { error?.let { Text(it) } },
                     modifier = Modifier.fillMaxWidth()
                 )
-                Button(
+                PremiumPrimaryButton(
                     onClick = {
                         error = when {
                             password.length < AdminSettings.MIN_ADMIN_PASSWORD_LENGTH -> "Şifre en az 4 haneli olmalı."
@@ -103,10 +95,11 @@ fun AdminLoginScreen(
                 ) {
                     Text("Giriş")
                 }
-                OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
+                PremiumOutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
                     Text(strings.returnHome)
                 }
             }
+        }
         }
     }
 }
@@ -123,11 +116,12 @@ fun AdminPanelScreen(
     onResetPricing: () -> Unit,
     onThemeSelected: (AppThemeOption) -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-    ) {
+    PremiumScreenBackground {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+        ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -136,12 +130,12 @@ fun AdminPanelScreen(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text("Admin panel", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-            OutlinedButton(onClick = onBackHome, shape = RoundedCornerShape(8.dp)) {
+            PremiumOutlinedButton(onClick = onBackHome) {
                 Text(strings.returnHome)
             }
         }
         Row(modifier = Modifier.fillMaxSize()) {
-            NavigationRail {
+            PremiumNavRail {
                 AdminRailItem(
                     selected = selectedSection == AdminPanelSection.Password,
                     label = "Şifre",
@@ -161,13 +155,11 @@ fun AdminPanelScreen(
                     onClick = { onSectionSelected(AdminPanelSection.Themes) }
                 )
             }
-            Surface(
-                color = MaterialTheme.colorScheme.surface,
+            PremiumCard(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(end = 18.dp, bottom = 18.dp),
-                shape = RoundedCornerShape(8.dp),
-                tonalElevation = 1.dp
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
             ) {
                 when (selectedSection) {
                     AdminPanelSection.Password -> PasswordAdminSection(onChangePassword = onChangePassword)
@@ -183,6 +175,7 @@ fun AdminPanelScreen(
                 }
             }
         }
+        }
     }
 }
 
@@ -193,11 +186,11 @@ private fun AdminRailItem(
     icon: @Composable () -> Unit,
     onClick: () -> Unit
 ) {
-    NavigationRailItem(
+    PremiumNavRailItem(
         selected = selected,
         onClick = onClick,
         icon = icon,
-        label = { Text(label) }
+        label = label
     )
 }
 
@@ -223,7 +216,7 @@ private fun PasswordAdminSection(
             repeatedPassword = it.filter(Char::isDigit)
             message = null
         }
-        Button(
+        PremiumPrimaryButton(
             onClick = {
                 val changed = onChangePassword(currentPassword, newPassword, repeatedPassword)
                 message = if (changed) {
@@ -235,7 +228,6 @@ private fun PasswordAdminSection(
                     "Eski şifre, yeni şifre veya tekrar alanı hatalı."
                 }
             },
-            shape = RoundedCornerShape(8.dp),
             modifier = Modifier.widthIn(min = 220.dp)
         ) {
             Text("Değiştir")
@@ -298,16 +290,15 @@ private fun PricingAdminSection(
                 }
             }
         }
-        OutlinedButton(
+        PremiumOutlinedButton(
             onClick = { tiers.add("" to "") },
-            shape = RoundedCornerShape(8.dp)
         ) {
             Icon(Icons.Default.Add, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
             Text("Basamak ekle")
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(
+            PremiumPrimaryButton(
                 onClick = {
                     val draft = PricingSettings(
                         photoUnitPrice = photoPrice.toIntOrNull() ?: -1,
@@ -322,16 +313,14 @@ private fun PricingAdminSection(
                     )
                     message = if (onSavePricing(draft)) "Fiyatlar kaydedildi." else "Fiyat değerlerini kontrol edin."
                 },
-                shape = RoundedCornerShape(8.dp)
             ) {
                 Text("Kaydet")
             }
-            OutlinedButton(
+            PremiumOutlinedButton(
                 onClick = {
                     onResetPricing()
                     message = "Varsayılan fiyatlara dönüldü."
                 },
-                shape = RoundedCornerShape(8.dp)
             ) {
                 Text("Varsayılana dön")
             }
@@ -384,10 +373,10 @@ private fun AdminSectionColumn(
 
 @Composable
 private fun PasswordField(label: String, value: String, onValueChange: (String) -> Unit) {
-    OutlinedTextField(
+    PremiumTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text(label) },
+        label = label,
         visualTransformation = PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
         singleLine = true,
@@ -402,10 +391,10 @@ private fun NumberField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth()
 ) {
-    OutlinedTextField(
+    PremiumTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text(label) },
+        label = label,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         singleLine = true,
         modifier = modifier
@@ -414,7 +403,7 @@ private fun NumberField(
 
 private fun AppThemeOption.adminLabel(): String = when (this) {
     AppThemeOption.TaksimLight -> "Mevcut kırmızı/açık"
-    AppThemeOption.Dark -> "Koyu"
+    AppThemeOption.Dark -> "Premium koyu"
     AppThemeOption.RedWhite -> "Koyu kırmızı-beyaz"
     AppThemeOption.HighContrastDark -> "Yüksek kontrast koyu"
     AppThemeOption.MonoLight -> "Sade siyah-beyaz"
@@ -424,7 +413,7 @@ private fun AppThemeOption.adminLabel(): String = when (this) {
 
 private fun AppThemeOption.adminDescription(): String = when (this) {
     AppThemeOption.TaksimLight -> "Mevcut Taksim paleti."
-    AppThemeOption.Dark -> "Koyu arka plan ve kırmızı vurgu."
+    AppThemeOption.Dark -> "Matte charcoal yüzeyler, düşük kontrast ve rafine kırmızı vurgu."
     AppThemeOption.RedWhite -> "Beyaz zemin, koyu kırmızı aksan."
     AppThemeOption.HighContrastDark -> "Siyah zemin, yüksek okunabilirlik."
     AppThemeOption.MonoLight -> "Temiz beyaz yüzeyler, siyah vurgu ve nötr metin."

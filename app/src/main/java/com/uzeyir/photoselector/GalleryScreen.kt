@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,11 +16,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -28,14 +27,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,11 +49,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.uzeyir.photoselector.ui.theme.TaksimDarkBackground
-import com.uzeyir.photoselector.ui.theme.TaksimSurfaceDark
+import com.uzeyir.photoselector.ui.theme.PremiumSurfaceOverlay
 import com.uzeyir.photoselector.ui.theme.TaksimError
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -87,11 +80,8 @@ fun GalleryScreen(
     val visibleMedia = if (activeTab == GalleryTab.All) photos else likedMediaItems
     val gridState = if (activeTab == GalleryTab.All) allGridState else favoritesGridState
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
+    PremiumScreenBackground {
+        Column(modifier = Modifier.fillMaxSize()) {
         GalleryHeader(
             selectedTab = activeTab,
             totalCount = photos.size,
@@ -107,19 +97,11 @@ fun GalleryScreen(
                     .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = RoundedCornerShape(8.dp),
-                    tonalElevation = 1.dp,
+                PremiumEmptyState(
+                    title = strings.noFavoritesYet,
+                    icon = Icons.Default.FavoriteBorder,
                     modifier = Modifier.padding(24.dp)
-                ) {
-                    Text(
-                        text = strings.noFavoritesYet,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.74f),
-                        modifier = Modifier.padding(horizontal = 28.dp, vertical = 22.dp)
-                    )
-                }
+                )
             }
         } else {
             BoxWithConstraints(
@@ -164,6 +146,7 @@ fun GalleryScreen(
                 }
             }
         }
+        }
     }
 }
 
@@ -175,15 +158,16 @@ private fun GalleryHeader(
     strings: LocalizedStrings,
     onTabSelected: (GalleryTab) -> Unit
 ) {
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp,
-        shadowElevation = 2.dp
+    PremiumCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
+        radius = PremiumRadius.lg
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 18.dp),
+                .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(18.dp)
         ) {
@@ -200,43 +184,14 @@ private fun GalleryHeader(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f)
                 )
             }
-            GalleryTabButton(
-                text = strings.allPhotos,
-                selected = selectedTab == GalleryTab.All,
-                onClick = { onTabSelected(GalleryTab.All) }
-            )
-            GalleryTabButton(
-                text = "${strings.favorites} ($favoriteCount)",
-                selected = selectedTab == GalleryTab.Favorites,
-                onClick = { onTabSelected(GalleryTab.Favorites) }
+            PremiumSegmentedControl(
+                options = listOf(strings.allPhotos, "${strings.favorites} ($favoriteCount)"),
+                selectedIndex = if (selectedTab == GalleryTab.All) 0 else 1,
+                onSelected = { index ->
+                    onTabSelected(if (index == 0) GalleryTab.All else GalleryTab.Favorites)
+                }
             )
         }
-    }
-}
-
-@Composable
-private fun GalleryTabButton(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    val container = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
-    val content = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-    Button(
-        onClick = onClick,
-        shape = RoundedCornerShape(8.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = container,
-            contentColor = content
-        ),
-        contentPadding = PaddingValues(horizontal = 30.dp, vertical = 18.dp),
-        modifier = Modifier.heightIn(min = 62.dp)
-    ) {
-        Text(
-            text = text,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold
-        )
     }
 }
 
@@ -288,10 +243,8 @@ fun PhotoItem(
         }
     }
 
-    Card(
-        shape = RoundedCornerShape(8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    PremiumGalleryItem(
+        selected = isLiked,
         modifier = Modifier
             .padding(3.dp)
             .aspectRatio(1f)
@@ -372,7 +325,12 @@ fun PhotoItem(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(6.dp)
-                    .background(TaksimSurfaceDark.copy(alpha = 0.64f), CircleShape)
+                    .background(PremiumSurfaceOverlay, CircleShape)
+                    .border(
+                        width = 1.dp,
+                        color = Color.White.copy(alpha = if (isLiked) 0.38f else 0.16f),
+                        shape = CircleShape
+                    )
             ) {
                 Icon(
                     imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,

@@ -14,20 +14,20 @@ import androidx.compose.ui.platform.LocalContext
 import com.uzeyir.photoselector.AppThemeOption
 
 private val DarkColorScheme = darkColorScheme(
-    primary = TaksimPrimaryRed,
-    onPrimary = TaksimTextWhite,
-    secondary = TaksimBurgundy,
-    onSecondary = TaksimTextWhite,
-    tertiary = TaksimWarmAccent,
-    onTertiary = TaksimTextDark,
-    background = TaksimDarkBackground,
-    surface = TaksimSurfaceDark,
-    surfaceVariant = TaksimBurgundy,
-    onBackground = TaksimTextWhite,
-    onSurface = TaksimTextWhite,
-    onSurfaceVariant = TaksimTextWhite,
-    outline = TaksimOutlineDark,
-    error = TaksimError
+    primary = PremiumAccent,
+    onPrimary = PremiumText,
+    secondary = PremiumGold,
+    onSecondary = PremiumBackground,
+    tertiary = PremiumSuccess,
+    onTertiary = PremiumBackground,
+    background = PremiumBackground,
+    surface = PremiumSurface,
+    surfaceVariant = PremiumSurfaceHigh,
+    onBackground = PremiumText,
+    onSurface = PremiumText,
+    onSurfaceVariant = PremiumTextMuted,
+    outline = PremiumOutline,
+    error = PremiumError
 )
 
 private val LightColorScheme = lightColorScheme(

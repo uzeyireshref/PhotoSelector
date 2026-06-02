@@ -1,9 +1,8 @@
 package com.uzeyir.photoselector
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,8 +14,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderOpen
@@ -24,28 +21,17 @@ import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.SdStorage
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SystemUpdate
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.uzeyir.photoselector.ui.theme.TaksimSuccess
 
 @Composable
 fun FolderSelectionScreen(
@@ -68,19 +54,7 @@ fun FolderSelectionScreen(
         AppLanguage.English -> "Continue from phone storage or an SD card."
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.background,
-                        MaterialTheme.colorScheme.primary,
-                        MaterialTheme.colorScheme.surface
-                    )
-                )
-            )
-    ) {
+    PremiumScreenBackground {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -115,21 +89,16 @@ fun FolderSelectionScreen(
                 .align(Alignment.TopCenter)
                 .statusBarsPadding()
         )
-        IconButton(
+        PremiumIconButton(
+            imageVector = Icons.Default.Settings,
+            contentDescription = "Admin panel",
             onClick = onAdminClick,
             modifier = Modifier
                 .size(56.dp)
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
                 .padding(top = 2.dp, end = 8.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Settings,
-                contentDescription = "Admin panel",
-                tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(30.dp)
-            )
-        }
+        )
     }
 }
 
@@ -146,15 +115,12 @@ private fun StartScreenPanel(
     onCheckUpdate: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    PremiumCard(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-        tonalElevation = 2.dp,
-        shadowElevation = 12.dp,
-        shape = RoundedCornerShape(8.dp)
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 28.dp)
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             StartScreenMark()
@@ -172,14 +138,9 @@ private fun StartScreenPanel(
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(24.dp))
-            Button(
+            PremiumPrimaryButton(
                 onClick = onFolderSelected,
                 enabled = !isLoadingMedia,
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp)
@@ -189,13 +150,9 @@ private fun StartScreenPanel(
                 Text(strings.selectFolder)
             }
             Spacer(modifier = Modifier.height(12.dp))
-            OutlinedButton(
+            PremiumOutlinedButton(
                 onClick = onOpenSdCard,
                 enabled = !isLoadingMedia,
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.primary
-                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp)
@@ -227,26 +184,12 @@ private fun StartScreenPanel(
 
 @Composable
 private fun StartScreenMark() {
-    Surface(
+    PremiumIconBadge(
+        imageVector = Icons.Default.PhotoLibrary,
+        contentDescription = null,
         modifier = Modifier.size(72.dp),
-        color = MaterialTheme.colorScheme.primary,
-        shape = CircleShape,
-        shadowElevation = 4.dp
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Surface(
-                modifier = Modifier.size(44.dp),
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.18f),
-                shape = RoundedCornerShape(8.dp)
-            ) {}
-            Icon(
-                imageVector = Icons.Default.PhotoLibrary,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.tertiary,
-                modifier = Modifier.size(34.dp)
-            )
-        }
-    }
+        tint = MaterialTheme.colorScheme.secondary
+    )
 }
 
 @Composable
@@ -256,22 +199,14 @@ fun LanguageSelector(
     onLanguageSelected: (AppLanguage) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    SingleChoiceSegmentedButtonRow(modifier = modifier) {
-        SegmentedButton(
-            selected = selectedLanguage == AppLanguage.Turkish,
-            onClick = { onLanguageSelected(AppLanguage.Turkish) },
-            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-        ) {
-            Text(strings.languageOptionTurkish)
-        }
-        SegmentedButton(
-            selected = selectedLanguage == AppLanguage.English,
-            onClick = { onLanguageSelected(AppLanguage.English) },
-            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-        ) {
-            Text(strings.languageOptionEnglish)
-        }
-    }
+    PremiumSegmentedControl(
+        options = listOf(strings.languageOptionTurkish, strings.languageOptionEnglish),
+        selectedIndex = if (selectedLanguage == AppLanguage.Turkish) 0 else 1,
+        onSelected = { index ->
+            onLanguageSelected(if (index == 0) AppLanguage.Turkish else AppLanguage.English)
+        },
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -282,22 +217,11 @@ fun UpdateCheckButton(
     modifier: Modifier = Modifier
 ) {
     val isBusy = updateStatus == AppUpdateStatus.Checking || updateStatus == AppUpdateStatus.Downloading
-    val isUpToDate = updateStatus == AppUpdateStatus.UpToDate
     val label = updateStatus.label(strings)
-    val colors = if (isUpToDate) {
-        ButtonDefaults.buttonColors(
-            containerColor = TaksimSuccess,
-            contentColor = Color.White
-        )
-    } else {
-        ButtonDefaults.buttonColors()
-    }
 
-    Button(
+    PremiumPrimaryButton(
         onClick = onClick,
         enabled = !isBusy,
-        colors = colors,
-        shape = RoundedCornerShape(8.dp),
         modifier = modifier.widthIn(min = 240.dp)
     ) {
         if (isBusy) {

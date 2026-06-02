@@ -15,7 +15,7 @@ enum class AppThemeOption {
 data class AdminSettings(
     val adminPassword: String = DEFAULT_ADMIN_PASSWORD,
     val pricing: PricingSettings = PricingSettings.Default,
-    val theme: AppThemeOption = AppThemeOption.TaksimLight
+    val theme: AppThemeOption = AppThemeOption.Dark
 ) {
     fun canChangePassword(currentPassword: String, newPassword: String, repeatedPassword: String): Boolean =
         currentPassword == adminPassword &&
@@ -51,7 +51,7 @@ class SharedPreferencesAdminSettingsStore(
         ).takeIf { it.isValid() } ?: PricingSettings.Default
         val theme = preferences.getString(KEY_THEME, null)
             ?.let { saved -> AppThemeOption.entries.firstOrNull { it.name == saved } }
-            ?: AppThemeOption.TaksimLight
+            ?: AppThemeOption.Dark
         return AdminSettings(
             adminPassword = password,
             pricing = pricing,

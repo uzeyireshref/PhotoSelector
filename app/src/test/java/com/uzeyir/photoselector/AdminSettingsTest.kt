@@ -15,7 +15,7 @@ class AdminSettingsTest {
         assertEquals(300, settings.pricing.photoUnitPrice)
         assertEquals(1000, settings.pricing.videoUnitPrice)
         assertEquals(10, settings.pricing.priceLimitCount)
-        assertEquals(AppThemeOption.TaksimLight, settings.theme)
+        assertEquals(AppThemeOption.Dark, settings.theme)
     }
 
     @Test

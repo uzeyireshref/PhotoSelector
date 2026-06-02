@@ -23,8 +23,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -219,9 +217,9 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
     }
 
     if (sdCardOptions.isNotEmpty()) {
-        AlertDialog(
+        PremiumDialog(
             onDismissRequest = { sdCardOptions = emptyList() },
-            title = { Text(strings.chooseSdCard) },
+            title = strings.chooseSdCard,
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     sdCardOptions.forEachIndexed { index, volume ->
@@ -239,7 +237,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { sdCardOptions = emptyList() }) {
+                PremiumOutlinedButton(onClick = { sdCardOptions = emptyList() }) {
                     Text(strings.back)
                 }
             }
@@ -247,17 +245,17 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
     }
 
     if (pendingReturnToFolderConfirmation) {
-        AlertDialog(
+        PremiumDialog(
             onDismissRequest = { viewModel.cancelReturnToFolderSelection() },
-            title = { Text(strings.returnHomeWarningTitle) },
+            title = strings.returnHomeWarningTitle,
             text = { Text(strings.returnHomeWarningMessage) },
             confirmButton = {
-                Button(onClick = { viewModel.confirmReturnToFolderSelection() }) {
+                PremiumPrimaryButton(onClick = { viewModel.confirmReturnToFolderSelection() }) {
                     Text(strings.returnHome)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.cancelReturnToFolderSelection() }) {
+                PremiumOutlinedButton(onClick = { viewModel.cancelReturnToFolderSelection() }) {
                     Text(strings.stayHere)
                 }
             }

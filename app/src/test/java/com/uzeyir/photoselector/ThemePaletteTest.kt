@@ -1,6 +1,11 @@
 package com.uzeyir.photoselector
 
 import androidx.compose.ui.graphics.Color
+import com.uzeyir.photoselector.ui.theme.PremiumAccent
+import com.uzeyir.photoselector.ui.theme.PremiumBackground
+import com.uzeyir.photoselector.ui.theme.PremiumOutline
+import com.uzeyir.photoselector.ui.theme.PremiumSurface
+import com.uzeyir.photoselector.ui.theme.PremiumSurfaceHigh
 import com.uzeyir.photoselector.ui.theme.TaksimDarkBackground
 import com.uzeyir.photoselector.ui.theme.TaksimLightBackground
 import com.uzeyir.photoselector.ui.theme.TaksimPrimaryRed
@@ -44,6 +49,17 @@ class ThemePaletteTest {
 
         assertNotEquals(Color(0xFF000000), midnight.background)
         assertNotEquals(Color(0xFF000000), midnight.surface)
+    }
+
+    @Test
+    fun premiumDarkTokensUseMatteCharcoalSurfacesAndRestrainedAccent() {
+        assertEquals(Color(0xFF0B0D10), PremiumBackground)
+        assertEquals(Color(0xFF15181D), PremiumSurface)
+        assertEquals(Color(0xFF20242B), PremiumSurfaceHigh)
+        assertEquals(Color(0xFF3A414C), PremiumOutline)
+        assertEquals(Color(0xFFC54B55), PremiumAccent)
+        assertNotEquals(Color(0xFF000000), PremiumBackground)
+        assertNotEquals(PremiumBackground, PremiumSurface)
     }
 
     @Test

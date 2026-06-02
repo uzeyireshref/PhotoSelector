@@ -12,14 +12,12 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material3.Button
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,10 +33,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.uzeyir.photoselector.ui.theme.TaksimSurfaceDark
-import com.uzeyir.photoselector.ui.theme.TaksimBurgundy
+import com.uzeyir.photoselector.ui.theme.PremiumSurfaceOverlay
 import com.uzeyir.photoselector.ui.theme.TaksimError
-import com.uzeyir.photoselector.ui.theme.TaksimSuccess
 import com.uzeyir.photoselector.ui.theme.TaksimSuccess
 
 @Composable
@@ -52,7 +48,7 @@ fun FullscreenTopBar(
     onBack: () -> Unit
 ) {
     Surface(
-        color = TaksimSurfaceDark.copy(alpha = 0.78f),
+        color = PremiumSurfaceOverlay,
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -107,10 +103,7 @@ fun FullscreenBottomBar(
     onReviewClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        color = TaksimSurfaceDark.copy(alpha = 0.82f),
-        modifier = modifier.fillMaxWidth()
-    ) {
+    PremiumBottomBar(modifier = modifier) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             if (maxWidth >= 600.dp) {
                 TabletFullscreenBottomBarContent(
@@ -181,7 +174,7 @@ private fun PhoneFullscreenBottomBarContent(
         }
         Spacer(modifier = Modifier.width(14.dp))
         FullscreenLikeButton(isLiked = isLiked, strings = strings, onLikeToggle = onLikeToggle)
-        Button(onClick = onReviewClick) {
+        PremiumPrimaryButton(onClick = onReviewClick) {
             Text(strings.review)
         }
     }
@@ -233,9 +226,8 @@ private fun TabletFullscreenBottomBarContent(
             verticalAlignment = Alignment.CenterVertically
         ) {
             FullscreenLikeButton(isLiked = isLiked, strings = strings, onLikeToggle = onLikeToggle)
-            Button(
+            PremiumPrimaryButton(
                 onClick = onReviewClick,
-                shape = RoundedCornerShape(8.dp),
                 contentPadding = PaddingValues(horizontal = 22.dp, vertical = 12.dp)
             ) {
                 Text(strings.review, style = MaterialTheme.typography.titleMedium)
@@ -281,10 +273,7 @@ fun VideoCompactBottomBar(
     onReviewClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        color = TaksimBurgundy.copy(alpha = 0.84f),
-        modifier = modifier.fillMaxWidth()
-    ) {
+    PremiumBottomBar(modifier = modifier) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             if (maxWidth >= 600.dp) {
                 TabletFullscreenBottomBarContent(
@@ -322,7 +311,7 @@ fun VideoCompactBottomBar(
                         )
                     }
                     FullscreenLikeButton(isLiked = isLiked, strings = strings, onLikeToggle = onLikeToggle)
-                    Button(onClick = onReviewClick) {
+                    PremiumPrimaryButton(onClick = onReviewClick) {
                         Text(strings.review)
                     }
                 }
@@ -345,9 +334,8 @@ fun SelectionPriceSummary(
     discountedColor: Color = TaksimSuccess,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    PremiumPriceSummaryCard(
         color = textColor.copy(alpha = 0.08f),
-        shape = RoundedCornerShape(8.dp),
         modifier = modifier
     ) {
         Column(
