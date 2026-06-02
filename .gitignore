@@ -25,3 +25,4 @@ keystore.properties
 current_screen*.png
 ps_screen*.png
 window*.xml
+.worktrees/
