@@ -190,6 +190,16 @@ class SelectionPricingTest {
         val strings = UiText.strings(AppLanguage.Turkish)
 
         assertEquals(
+            listOf("Foto: 2 x 300 TL", "Video: 1 x 1000 TL"),
+            priceCalculationParts(
+                photoCount = 2,
+                videoCount = 1,
+                photoOriginalPrice = 600,
+                videoOriginalPrice = 1000,
+                strings = strings
+            )
+        )
+        assertEquals(
             "Foto: 2 x 300 TL · Video: 1 x 1000 TL",
             priceCalculationDetail(
                 photoCount = 2,

@@ -37,8 +37,23 @@ internal fun priceCalculationDetail(
     photoOriginalPrice: Int,
     videoOriginalPrice: Int,
     strings: LocalizedStrings
-): String {
-    val parts = buildList {
+): String =
+    priceCalculationParts(
+        photoCount = photoCount,
+        videoCount = videoCount,
+        photoOriginalPrice = photoOriginalPrice,
+        videoOriginalPrice = videoOriginalPrice,
+        strings = strings
+    ).joinToString(" · ")
+
+internal fun priceCalculationParts(
+    photoCount: Int,
+    videoCount: Int,
+    photoOriginalPrice: Int,
+    videoOriginalPrice: Int,
+    strings: LocalizedStrings
+): List<String> =
+    buildList {
         if (photoCount > 0) {
             val unitPrice = photoOriginalPrice / photoCount
             add("${strings.photoShort}: $photoCount x ${strings.price(unitPrice)}")
@@ -48,5 +63,3 @@ internal fun priceCalculationDetail(
             add("${strings.videoShort}: $videoCount x ${strings.price(unitPrice)}")
         }
     }
-    return parts.joinToString(" · ")
-}

@@ -198,7 +198,7 @@ internal fun CompactPriceSummary(
         animationSpec = tween(durationMillis = 180),
         label = "BottomTotalPayablePrice"
     )
-    val calculationDetail = priceCalculationDetail(
+    val calculationParts = priceCalculationParts(
         photoCount = photoCount,
         videoCount = videoCount,
         photoOriginalPrice = photoOriginalPrice,
@@ -206,63 +206,72 @@ internal fun CompactPriceSummary(
         strings = strings
     )
     val summaryContent: @Composable () -> Unit = {
-        Row(
-            modifier = Modifier.padding(contentPadding),
-            horizontalArrangement = horizontalArrangement,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(
-                modifier = Modifier.widthIn(min = 160.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = "${strings.selected}: ${photoCount + videoCount}",
-                    style = AppTheme.typography.CardTitle,
-                    color = colors.selected,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "${strings.photoShort}: $photoCount   ${strings.videoShort}: $videoCount",
-                    style = AppTheme.typography.Body,
-                    color = colors.supporting
-                )
-                if (calculationDetail.isNotBlank()) {
-                    Text(
-                        text = calculationDetail,
-                        style = AppTheme.typography.HelperText,
-                        color = colors.supporting.copy(alpha = 0.82f)
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val wide = maxWidth >= 520.dp
+            if (wide) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(contentPadding),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    PriceSelectionBlock(
+                        photoCount = photoCount,
+                        videoCount = videoCount,
+                        strings = strings,
+                        colors = colors,
+                        modifier = Modifier.widthIn(min = 150.dp, max = 190.dp)
+                    )
+                    PriceCalculationBlock(
+                        calculationParts = calculationParts,
+                        discount = discount,
+                        strings = strings,
+                        colors = colors,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 22.dp)
+                    )
+                    PriceTotalBlock(
+                        originalTotalPrice = originalTotalPrice,
+                        discount = discount,
+                        totalPayablePrice = animatedTotalPayablePrice,
+                        strings = strings,
+                        colors = colors,
+                        modifier = Modifier.widthIn(min = 150.dp),
+                        horizontalAlignment = Alignment.End
                     )
                 }
-                if (discount > 0) {
-                    Text(
-                        text = "${strings.discount}: ${strings.price(discount)}",
-                        style = AppTheme.typography.Body,
-                        color = colors.discount
-                    )
-                }
-            }
-            Column(
-                modifier = Modifier.width(120.dp),
-                horizontalAlignment = Alignment.Start,
-                verticalArrangement = Arrangement.spacedBy(3.dp)
-            ) {
-                Text(
-                    text = strings.total,
-                    style = AppTheme.typography.HelperText,
-                    color = colors.totalLabel
-                )
-                Text(
-                    text = strings.price(animatedTotalPayablePrice),
-                    style = AppTheme.typography.SectionTitle,
-                    color = if (discount > 0) colors.discount else colors.totalPrice,
-                    fontWeight = FontWeight.Bold
-                )
-                if (discount > 0) {
-                    Text(
-                        text = strings.price(originalTotalPrice),
-                        style = AppTheme.typography.Body,
-                        color = colors.supporting.copy(alpha = 0.72f),
-                        textDecoration = TextDecoration.LineThrough
+            } else {
+                Row(
+                    modifier = Modifier.padding(contentPadding),
+                    horizontalArrangement = horizontalArrangement,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.widthIn(min = 160.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        PriceSelectionBlock(
+                            photoCount = photoCount,
+                            videoCount = videoCount,
+                            strings = strings,
+                            colors = colors
+                        )
+                        PriceCalculationBlock(
+                            calculationParts = calculationParts,
+                            discount = discount,
+                            strings = strings,
+                            colors = colors
+                        )
+                    }
+                    PriceTotalBlock(
+                        originalTotalPrice = originalTotalPrice,
+                        discount = discount,
+                        totalPayablePrice = animatedTotalPayablePrice,
+                        strings = strings,
+                        colors = colors,
+                        modifier = Modifier.width(120.dp)
                     )
                 }
             }
@@ -282,6 +291,106 @@ internal fun CompactPriceSummary(
             radius = AppTheme.shapes.Button
         ) {
             summaryContent()
+        }
+    }
+}
+
+@Composable
+private fun PriceSelectionBlock(
+    photoCount: Int,
+    videoCount: Int,
+    strings: LocalizedStrings,
+    colors: PriceSummaryColors,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            text = "${strings.selected}: ${photoCount + videoCount}",
+            style = AppTheme.typography.CardTitle,
+            color = colors.selected,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = "${strings.photoShort}: $photoCount   ${strings.videoShort}: $videoCount",
+            style = AppTheme.typography.Body,
+            color = colors.supporting
+        )
+    }
+}
+
+@Composable
+private fun PriceCalculationBlock(
+    calculationParts: List<String>,
+    discount: Int,
+    strings: LocalizedStrings,
+    colors: PriceSummaryColors,
+    modifier: Modifier = Modifier
+) {
+    if (calculationParts.isEmpty() && discount <= 0) return
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        if (calculationParts.isNotEmpty()) {
+            Text(
+                text = strings.priceBreakdown,
+                style = AppTheme.typography.HelperText,
+                color = colors.supporting.copy(alpha = 0.72f)
+            )
+            calculationParts.forEach { part ->
+                Text(
+                    text = part,
+                    style = AppTheme.typography.Body,
+                    color = colors.supporting
+                )
+            }
+        }
+        if (discount > 0) {
+            Text(
+                text = "${strings.discount}: ${strings.price(discount)}",
+                style = AppTheme.typography.Body,
+                color = colors.discount
+            )
+        }
+    }
+}
+
+@Composable
+private fun PriceTotalBlock(
+    originalTotalPrice: Int,
+    discount: Int,
+    totalPayablePrice: Int,
+    strings: LocalizedStrings,
+    colors: PriceSummaryColors,
+    modifier: Modifier = Modifier,
+    horizontalAlignment: Alignment.Horizontal = Alignment.Start
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = horizontalAlignment,
+        verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        Text(
+            text = strings.total,
+            style = AppTheme.typography.HelperText,
+            color = colors.totalLabel
+        )
+        Text(
+            text = strings.price(totalPayablePrice),
+            style = AppTheme.typography.SectionTitle,
+            color = if (discount > 0) colors.discount else colors.totalPrice,
+            fontWeight = FontWeight.Bold
+        )
+        if (discount > 0) {
+            Text(
+                text = strings.price(originalTotalPrice),
+                style = AppTheme.typography.Body,
+                color = colors.supporting.copy(alpha = 0.72f),
+                textDecoration = TextDecoration.LineThrough
+            )
         }
     }
 }

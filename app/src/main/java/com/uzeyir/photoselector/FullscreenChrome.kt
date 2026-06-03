@@ -20,8 +20,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.animation.core.animateIntAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.RotateRight
@@ -36,7 +34,6 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -218,58 +215,16 @@ private fun PhoneFullscreenBottomBarContent(
         FullscreenPriceSummaryCard(
             modifier = Modifier.weight(1f)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                val discount = (photoOriginalPrice + videoOriginalPrice) - (photoPayablePrice + videoPayablePrice)
-                val animatedTotalPayablePrice by animateIntAsState(
-                    targetValue = totalPayablePrice,
-                    animationSpec = tween(durationMillis = 180),
-                    label = "FullscreenPhoneTotalPayablePrice"
-                )
-                val calculationDetail = priceCalculationDetail(
-                    photoCount = photoCount,
-                    videoCount = videoCount,
-                    photoOriginalPrice = photoOriginalPrice,
-                    videoOriginalPrice = videoOriginalPrice,
-                    strings = strings
-                )
-                Text(
-                    text = "${strings.selected}: ${photoCount + videoCount}",
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "${strings.photoShort}: $photoCount   ${strings.videoShort}: $videoCount",
-                    color = Color.White.copy(alpha = 0.75f),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                if (calculationDetail.isNotBlank()) {
-                    Text(
-                        text = calculationDetail,
-                        color = Color.White.copy(alpha = 0.68f),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-                if (discount > 0) {
-                    Text(
-                        text = "${strings.discount}: ${strings.price(discount)}",
-                        color = TaksimSuccess,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Text(
-                        text = strings.price(photoOriginalPrice + videoOriginalPrice),
-                        color = Color.White.copy(alpha = 0.66f),
-                        textDecoration = TextDecoration.LineThrough,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-                Text(
-                    text = "${strings.total}: ${strings.price(animatedTotalPayablePrice)}",
-                    color = if (discount > 0) TaksimSuccess else Color.White,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+            FullscreenReadablePriceSummary(
+                photoCount = photoCount,
+                videoCount = videoCount,
+                photoOriginalPrice = photoOriginalPrice,
+                photoPayablePrice = photoPayablePrice,
+                videoOriginalPrice = videoOriginalPrice,
+                videoPayablePrice = videoPayablePrice,
+                totalPayablePrice = totalPayablePrice,
+                strings = strings
+            )
         }
         Spacer(modifier = Modifier.width(14.dp))
         FullscreenLikeButton(isLiked = isLiked, strings = strings, onLikeToggle = onLikeToggle)
@@ -302,78 +257,21 @@ private fun TabletFullscreenBottomBarContent(
         verticalAlignment = Alignment.CenterVertically
     ) {
         FullscreenPriceSummaryCard(
-            modifier = Modifier.weight(1.5f)
+            modifier = Modifier.weight(1.9f)
         ) {
-            val discount = (photoOriginalPrice + videoOriginalPrice) - (photoPayablePrice + videoPayablePrice)
-            val animatedTotalPayablePrice by animateIntAsState(
-                targetValue = totalPayablePrice,
-                animationSpec = tween(durationMillis = 180),
-                label = "FullscreenTabletTotalPayablePrice"
-            )
-            val calculationDetail = priceCalculationDetail(
+            FullscreenReadablePriceSummary(
                 photoCount = photoCount,
                 videoCount = videoCount,
                 photoOriginalPrice = photoOriginalPrice,
+                photoPayablePrice = photoPayablePrice,
                 videoOriginalPrice = videoOriginalPrice,
+                videoPayablePrice = videoPayablePrice,
+                totalPayablePrice = totalPayablePrice,
                 strings = strings
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = "${strings.selected}: ${photoCount + videoCount}",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "${strings.photoShort}: $photoCount   ${strings.videoShort}: $videoCount",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.75f)
-                    )
-                    if (calculationDetail.isNotBlank()) {
-                        Text(
-                            text = calculationDetail,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.68f)
-                        )
-                    }
-                    if (discount > 0) {
-                        Text(
-                            text = "${strings.discount}: ${strings.price(discount)}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TaksimSuccess
-                        )
-                    }
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = strings.total,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color.White.copy(alpha = 0.70f)
-                    )
-                    if (discount > 0) {
-                        Text(
-                            text = strings.price(photoOriginalPrice + videoOriginalPrice),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White.copy(alpha = 0.66f),
-                            textDecoration = TextDecoration.LineThrough
-                        )
-                    }
-                    Text(
-                        text = strings.price(animatedTotalPayablePrice),
-                        style = MaterialTheme.typography.titleLarge,
-                        color = if (discount > 0) TaksimSuccess else Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
         }
         Row(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(0.8f),
             horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -386,6 +284,39 @@ private fun TabletFullscreenBottomBarContent(
             }
         }
     }
+}
+
+@Composable
+private fun FullscreenReadablePriceSummary(
+    photoCount: Int,
+    videoCount: Int,
+    photoOriginalPrice: Int,
+    photoPayablePrice: Int,
+    videoOriginalPrice: Int,
+    videoPayablePrice: Int,
+    totalPayablePrice: Int,
+    strings: LocalizedStrings
+) {
+    val discount = (photoOriginalPrice + videoOriginalPrice) - (photoPayablePrice + videoPayablePrice)
+    CompactPriceSummary(
+        photoCount = photoCount,
+        videoCount = videoCount,
+        photoOriginalPrice = photoOriginalPrice,
+        videoOriginalPrice = videoOriginalPrice,
+        originalTotalPrice = photoOriginalPrice + videoOriginalPrice,
+        discount = discount,
+        totalPayablePrice = totalPayablePrice,
+        strings = strings,
+        colors = PriceSummaryColors(
+            selected = Color.White,
+            supporting = Color.White.copy(alpha = 0.76f),
+            discount = TaksimSuccess,
+            totalLabel = Color.White.copy(alpha = 0.70f),
+            totalPrice = Color.White
+        ),
+        contentPadding = PaddingValues(0.dp),
+        horizontalArrangement = Arrangement.spacedBy(18.dp)
+    )
 }
 
 @Composable
@@ -455,48 +386,16 @@ fun VideoCompactBottomBar(
                     FullscreenPriceSummaryCard(
                         modifier = Modifier.weight(1f)
                     ) {
-                        val originalTotalPrice = photoOriginalPrice + videoOriginalPrice
-                        val discount = originalTotalPrice - totalPayablePrice
-                        val animatedTotalPayablePrice by animateIntAsState(
-                            targetValue = totalPayablePrice,
-                            animationSpec = tween(durationMillis = 180),
-                            label = "VideoCompactTotalPayablePrice"
-                        )
-                        val calculationDetail = priceCalculationDetail(
+                        FullscreenReadablePriceSummary(
                             photoCount = photoCount,
                             videoCount = videoCount,
                             photoOriginalPrice = photoOriginalPrice,
+                            photoPayablePrice = photoPayablePrice,
                             videoOriginalPrice = videoOriginalPrice,
+                            videoPayablePrice = videoPayablePrice,
+                            totalPayablePrice = totalPayablePrice,
                             strings = strings
                         )
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                text = "${strings.photo}: $photoCount  ${strings.video}: $videoCount",
-                                color = Color.White.copy(alpha = 0.75f),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            if (calculationDetail.isNotBlank()) {
-                                Text(
-                                    text = calculationDetail,
-                                    color = Color.White.copy(alpha = 0.68f),
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                            if (discount > 0) {
-                                Text(
-                                    text = strings.price(originalTotalPrice),
-                                    color = Color.White.copy(alpha = 0.66f),
-                                    textDecoration = TextDecoration.LineThrough,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                            Text(
-                                text = strings.price(animatedTotalPayablePrice),
-                                color = if (discount > 0) TaksimSuccess else Color.White,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
                     }
                     FullscreenLikeButton(isLiked = isLiked, strings = strings, onLikeToggle = onLikeToggle)
                     AppPrimaryButton(onClick = onReviewClick) {
