@@ -3,6 +3,14 @@ package com.uzeyir.photoselector
 import android.net.Uri
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,6 +41,7 @@ import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,8 +53,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
@@ -80,9 +91,6 @@ fun GalleryScreen(
         internalSelectedTab = tab
         onTabSelected(tab)
     }
-    val visibleMedia = if (activeTab == GalleryTab.All) photos else likedMediaItems
-    val gridState = if (activeTab == GalleryTab.All) allGridState else favoritesGridState
-
     AppScreenBackground {
         Column(modifier = Modifier.fillMaxSize()) {
             GalleryHeader(
@@ -93,58 +101,69 @@ fun GalleryScreen(
                 onTabSelected = selectTab
             )
 
-            if (activeTab == GalleryTab.Favorites && visibleMedia.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    EmptyFavoritesState(
-                        title = strings.noFavoritesYet,
-                        modifier = Modifier.padding(24.dp)
-                    )
-                }
-            } else {
-                BoxWithConstraints(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .weight(1f)
-                ) {
-                    val density = LocalDensity.current
-                    val widthDp = maxWidth.value.roundToInt()
-                    val columnCount = galleryColumnCountForWidthDp(widthDp)
-                    val thumbnailSizePx = thumbnailRequestSizePx(widthDp, density.density)
-                    val gridPadding = if (columnCount >= 4) 18.dp else 12.dp
-                    val gridSpacing = if (columnCount >= 4) 10.dp else 8.dp
-
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(columnCount),
-                        state = gridState,
-                        contentPadding = PaddingValues(gridPadding),
-                        verticalArrangement = Arrangement.spacedBy(gridSpacing),
-                        horizontalArrangement = Arrangement.spacedBy(gridSpacing)
+            AnimatedContent(
+                targetState = activeTab,
+                transitionSpec = {
+                    val direction = if (targetState == GalleryTab.Favorites) 1 else -1
+                    (fadeIn(tween(120)) + slideInHorizontally(tween(140)) { direction * it / 10 })
+                        .togetherWith(fadeOut(tween(90)) + slideOutHorizontally(tween(120)) { -direction * it / 10 })
+                },
+                label = "GalleryTabContent",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .weight(1f)
+            ) { tab ->
+                val visibleMedia = if (tab == GalleryTab.All) photos else likedMediaItems
+                val gridState = if (tab == GalleryTab.All) allGridState else favoritesGridState
+                if (tab == GalleryTab.Favorites && visibleMedia.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
                     ) {
-                        items(
-                            items = visibleMedia,
-                            key = { it.uri },
-                            contentType = { it.mediaType }
-                        ) { photo ->
-                            PhotoItem(
-                                media = photo,
-                                isLiked = likedPhotoUris.contains(photo.uri),
-                                strings = strings,
-                                thumbnailSizePx = thumbnailSizePx,
-                                isScrollInProgress = gridState.isScrollInProgress,
-                                onClick = {
-                                    if (activeTab == GalleryTab.Favorites) {
-                                        onFavoritePhotoClick(photo.uri)
-                                    } else {
-                                        onPhotoClick(photo.uri)
-                                    }
-                                },
-                                onLikeToggle = { onLikeToggle(photo.uri) }
-                            )
+                        EmptyFavoritesState(
+                            title = strings.noFavoritesYet,
+                            actionText = strings.goToAllPhotos,
+                            onActionClick = { selectTab(GalleryTab.All) },
+                            modifier = Modifier.padding(24.dp)
+                        )
+                    }
+                } else {
+                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                        val density = LocalDensity.current
+                        val widthDp = maxWidth.value.roundToInt()
+                        val columnCount = galleryColumnCountForWidthDp(widthDp)
+                        val thumbnailSizePx = thumbnailRequestSizePx(widthDp, density.density)
+                        val gridPadding = if (columnCount >= 4) 18.dp else 12.dp
+                        val gridSpacing = if (columnCount >= 4) 10.dp else 8.dp
+
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(columnCount),
+                            state = gridState,
+                            contentPadding = PaddingValues(gridPadding),
+                            verticalArrangement = Arrangement.spacedBy(gridSpacing),
+                            horizontalArrangement = Arrangement.spacedBy(gridSpacing)
+                        ) {
+                            items(
+                                items = visibleMedia,
+                                key = { it.uri },
+                                contentType = { it.mediaType }
+                            ) { photo ->
+                                PhotoItem(
+                                    media = photo,
+                                    isLiked = likedPhotoUris.contains(photo.uri),
+                                    strings = strings,
+                                    thumbnailSizePx = thumbnailSizePx,
+                                    isScrollInProgress = gridState.isScrollInProgress,
+                                    onClick = {
+                                        if (tab == GalleryTab.Favorites) {
+                                            onFavoritePhotoClick(photo.uri)
+                                        } else {
+                                            onPhotoClick(photo.uri)
+                                        }
+                                    },
+                                    onLikeToggle = { onLikeToggle(photo.uri) }
+                                )
+                            }
                         }
                     }
                 }
@@ -156,40 +175,51 @@ fun GalleryScreen(
 @Composable
 private fun EmptyFavoritesState(
     title: String,
+    actionText: String,
+    onActionClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(22.dp)
-    Row(
+    Column(
         modifier = modifier
             .widthIn(min = 280.dp, max = 420.dp)
             .background(AppTheme.colors.SurfaceElevated, shape)
             .border(1.dp, AppTheme.colors.BorderSubtle.copy(alpha = 0.72f), shape)
             .padding(horizontal = 22.dp, vertical = 18.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(
-            modifier = Modifier
-                .size(46.dp)
-                .background(AppTheme.colors.SurfaceMuted, CircleShape)
-                .border(1.dp, AppTheme.colors.BorderSubtle.copy(alpha = 0.72f), CircleShape),
-            contentAlignment = Alignment.Center
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.FavoriteBorder,
-                contentDescription = null,
-                tint = AppTheme.colors.TextPrimary,
-                modifier = Modifier.size(24.dp)
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .background(AppTheme.colors.SurfaceMuted, CircleShape)
+                    .border(1.dp, AppTheme.colors.BorderSubtle.copy(alpha = 0.72f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FavoriteBorder,
+                    contentDescription = null,
+                    tint = AppTheme.colors.TextPrimary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Text(
+                text = title,
+                style = AppTheme.typography.CardTitle,
+                color = AppTheme.colors.TextPrimary,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
         }
-        Text(
-            text = title,
-            style = AppTheme.typography.CardTitle,
-            color = AppTheme.colors.TextPrimary,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
+        AppOutlinedButton(onClick = onActionClick, modifier = Modifier.fillMaxWidth()) {
+            Text(actionText, style = AppTheme.typography.ButtonText)
+        }
     }
 }
 
@@ -290,6 +320,11 @@ fun PhotoItem(
             .build()
     }
     val fastThumbnailPainter = fastThumbnail?.let { BitmapPainter(it.asImageBitmap()) }
+    val highQualityAlpha by animateFloatAsState(
+        targetValue = if (highQualityThumbnailPainter != null) 1f else 0f,
+        animationSpec = tween(durationMillis = 160),
+        label = "HighQualityThumbnailAlpha"
+    )
 
     LaunchedEffect(media.uri, media.mediaType, thumbnailSizePx) {
         fastThumbnail = null
@@ -357,7 +392,9 @@ fun PhotoItem(
                         Image(
                             painter = highQualityThumbnailPainter!!,
                             contentDescription = media.displayName,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { alpha = highQualityAlpha },
                             contentScale = ContentScale.Crop
                         )
                     }
@@ -381,7 +418,9 @@ fun PhotoItem(
                                     }
                                 }
                             },
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { alpha = 0f },
                             contentScale = ContentScale.Crop
                         )
                     }
@@ -391,21 +430,30 @@ fun PhotoItem(
                 onClick = onLikeToggle,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(6.dp)
-                    .size(40.dp)
-                    .background(Color.Black.copy(alpha = 0.32f), CircleShape)
-                    .border(
-                        width = 1.dp,
-                        color = Color.White.copy(alpha = if (isLiked) 0.38f else 0.16f),
-                        shape = CircleShape
-                    )
+                    .padding(2.dp)
+                    .size(48.dp)
+                    .clip(CircleShape),
+                colors = IconButtonDefaults.iconButtonColors(containerColor = Color.Transparent)
             ) {
-                Icon(
-                    imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = strings.like,
-                    tint = if (isLiked) AppTheme.colors.Error else Color.White,
-                    modifier = Modifier.size(22.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(Color.Black.copy(alpha = 0.32f), CircleShape)
+                        .border(
+                            width = 1.dp,
+                            color = Color.White.copy(alpha = if (isLiked) 0.38f else 0.16f),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AnimatedFavoriteIcon(
+                        imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = strings.like,
+                        isLiked = isLiked,
+                        tint = if (isLiked) AppTheme.colors.Error else Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
         }
     }

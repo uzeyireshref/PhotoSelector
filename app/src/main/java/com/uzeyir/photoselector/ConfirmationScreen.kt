@@ -39,11 +39,19 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -191,6 +199,33 @@ fun ConfirmationScreen(
                     }
 
                     is ExportStatus.Success -> {
+                        var successVisible by remember(exportStatus) { mutableStateOf(false) }
+                        LaunchedEffect(exportStatus) {
+                            successVisible = true
+                        }
+                        val successScale by animateFloatAsState(
+                            targetValue = if (successVisible) 1f else 0.72f,
+                            animationSpec = tween(durationMillis = 180),
+                            label = "CopySuccessCheckScale"
+                        )
+                        val successAlpha by animateFloatAsState(
+                            targetValue = if (successVisible) 1f else 0f,
+                            animationSpec = tween(durationMillis = 140),
+                            label = "CopySuccessCheckAlpha"
+                        )
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = TaksimSuccess,
+                            modifier = Modifier
+                                .size(54.dp)
+                                .graphicsLayer {
+                                    scaleX = successScale
+                                    scaleY = successScale
+                                    alpha = successAlpha
+                                }
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
                         Text(strings.exportComplete, color = TaksimSuccess, style = AppTheme.typography.SectionTitle)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(

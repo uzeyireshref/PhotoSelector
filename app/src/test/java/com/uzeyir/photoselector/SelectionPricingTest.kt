@@ -184,4 +184,30 @@ class SelectionPricingTest {
         assertEquals(5400, pricing.videoDisplayPrice)
         assertEquals(7200, pricing.totalDisplayPrice)
     }
+
+    @Test
+    fun priceCalculationDetailShowsSelectedUnitPrices() {
+        val strings = UiText.strings(AppLanguage.Turkish)
+
+        assertEquals(
+            "Foto: 2 x 300 TL · Video: 1 x 1000 TL",
+            priceCalculationDetail(
+                photoCount = 2,
+                videoCount = 1,
+                photoOriginalPrice = 600,
+                videoOriginalPrice = 1000,
+                strings = strings
+            )
+        )
+        assertEquals(
+            "Foto: 2 x 300 TL",
+            priceCalculationDetail(
+                photoCount = 2,
+                videoCount = 0,
+                photoOriginalPrice = 600,
+                videoOriginalPrice = 0,
+                strings = strings
+            )
+        )
+    }
 }

@@ -72,4 +72,22 @@ class LocalizationTest {
             AppUpdateStatus.Error.label(UiText.strings(AppLanguage.English))
         )
     }
+
+    @Test
+    fun galleryAndAdminActionTextIsLocalized() {
+        val turkish = UiText.strings(AppLanguage.Turkish)
+        val english = UiText.strings(AppLanguage.English)
+
+        assertEquals("Tüm Fotoğraflara Git", turkish.goToAllPhotos)
+        assertEquals("Go to All Photos", english.goToAllPhotos)
+
+        assertEquals("Admin panel", turkish.adminPanel)
+        assertEquals("Admin panel", english.adminPanel)
+        assertEquals("Şifre", turkish.adminPassword)
+        assertEquals("Password", english.adminPassword)
+        assertEquals("Fiyatlar", turkish.adminPricing)
+        assertEquals("Pricing", english.adminPricing)
+        assertEquals("Tema", turkish.adminThemes)
+        assertEquals("Theme", english.adminThemes)
+    }
 }

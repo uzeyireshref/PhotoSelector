@@ -1,12 +1,18 @@
 package com.uzeyir.photoselector
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -18,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -37,12 +44,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
@@ -346,51 +357,100 @@ fun AppSegmentedControl(
         shape = RoundedCornerShape(AppTheme.shapes.Chip),
         border = BorderStroke(1.2.dp, accent.copy(alpha = 0.35f))
     ) {
-        Row(
+        BoxWithConstraints(
             modifier = Modifier
                 .background(premiumGlassBrush(AppTheme.colors.SurfaceElevated))
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                .padding(4.dp)
         ) {
-            options.forEachIndexed { index, text ->
-                val selected = selectedIndex == index
-                val icon = icons.getOrNull(index)
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(AppTheme.shapes.Chip))
-                        .clickable { onSelected(index) }
-                        .background(if (selected) premiumGlassBrush(AppTheme.colors.SurfaceMuted) else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent)))
-                        .border(
-                            BorderStroke(1.dp, if (selected) accent.copy(alpha = 0.85f) else Color.Transparent),
-                            RoundedCornerShape(AppTheme.shapes.Chip)
-                        )
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+            val optionCount = options.size.coerceAtLeast(1)
+            val segmentWidth = maxWidth / optionCount
+            val indicatorOffset by animateDpAsState(
+                targetValue = segmentWidth * selectedIndex.coerceIn(0, optionCount - 1),
+                animationSpec = tween(durationMillis = 180),
+                label = "SegmentIndicatorOffset"
+            )
+            Box(
+                modifier = Modifier
+                    .offset(x = indicatorOffset)
+                    .width(segmentWidth)
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(AppTheme.shapes.Chip))
+                    .background(premiumGlassBrush(AppTheme.colors.SurfaceMuted))
+                    .border(BorderStroke(1.dp, accent.copy(alpha = 0.85f)), RoundedCornerShape(AppTheme.shapes.Chip))
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                options.forEachIndexed { index, text ->
+                    val selected = selectedIndex == index
+                    val icon = icons.getOrNull(index)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(AppTheme.shapes.Chip))
+                            .clickable { onSelected(index) }
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        if (icon != null) {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = null,
-                                tint = AppTheme.colors.TextPrimary,
-                                modifier = Modifier.size(20.dp)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (icon != null) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    tint = AppTheme.colors.TextPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Text(
+                                text,
+                                style = AppTheme.typography.ButtonText,
+                                color = AppTheme.colors.TextPrimary,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
                             )
                         }
-                        Text(
-                            text,
-                            style = AppTheme.typography.ButtonText,
-                            color = AppTheme.colors.TextPrimary,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
-                        )
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+fun AnimatedFavoriteIcon(
+    imageVector: ImageVector,
+    contentDescription: String?,
+    isLiked: Boolean,
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    val scale = remember { Animatable(1f) }
+    LaunchedEffect(isLiked) {
+        scale.snapTo(1f)
+        if (isLiked) {
+            scale.animateTo(1.24f, animationSpec = tween(durationMillis = 80))
+            scale.animateTo(0.96f, animationSpec = tween(durationMillis = 70))
+            scale.animateTo(
+                1f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium
+                )
+            )
+        } else {
+            scale.animateTo(0.92f, animationSpec = tween(durationMillis = 60))
+            scale.animateTo(1f, animationSpec = tween(durationMillis = 90))
+        }
+    }
+    Icon(
+        imageVector = imageVector,
+        contentDescription = contentDescription,
+        tint = tint,
+        modifier = modifier.graphicsLayer {
+            scaleX = scale.value
+            scaleY = scale.value
+        }
+    )
 }
 
 @Composable

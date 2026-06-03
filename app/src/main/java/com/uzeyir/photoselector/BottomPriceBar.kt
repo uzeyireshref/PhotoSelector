@@ -14,7 +14,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -99,6 +102,8 @@ private fun PhoneBottomPriceBarContent(
         CompactPriceSummary(
             photoCount = photoCount,
             videoCount = videoCount,
+            photoOriginalPrice = photoOriginalPrice,
+            videoOriginalPrice = videoOriginalPrice,
             originalTotalPrice = photoOriginalPrice + videoOriginalPrice,
             discount = discount,
             totalPayablePrice = totalPayablePrice,
@@ -138,6 +143,8 @@ private fun TabletBottomPriceBarContent(
         CompactPriceSummary(
             photoCount = photoCount,
             videoCount = videoCount,
+            photoOriginalPrice = photoOriginalPrice,
+            videoOriginalPrice = videoOriginalPrice,
             originalTotalPrice = photoOriginalPrice + videoOriginalPrice,
             discount = discount,
             totalPayablePrice = totalPayablePrice,
@@ -168,6 +175,8 @@ internal data class PriceSummaryColors(
 internal fun CompactPriceSummary(
     photoCount: Int,
     videoCount: Int,
+    photoOriginalPrice: Int,
+    videoOriginalPrice: Int,
     originalTotalPrice: Int,
     discount: Int,
     totalPayablePrice: Int,
@@ -184,6 +193,18 @@ internal fun CompactPriceSummary(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(28.dp)
 ) {
+    val animatedTotalPayablePrice by animateIntAsState(
+        targetValue = totalPayablePrice,
+        animationSpec = tween(durationMillis = 180),
+        label = "BottomTotalPayablePrice"
+    )
+    val calculationDetail = priceCalculationDetail(
+        photoCount = photoCount,
+        videoCount = videoCount,
+        photoOriginalPrice = photoOriginalPrice,
+        videoOriginalPrice = videoOriginalPrice,
+        strings = strings
+    )
     val summaryContent: @Composable () -> Unit = {
         Row(
             modifier = Modifier.padding(contentPadding),
@@ -205,6 +226,13 @@ internal fun CompactPriceSummary(
                     style = AppTheme.typography.Body,
                     color = colors.supporting
                 )
+                if (calculationDetail.isNotBlank()) {
+                    Text(
+                        text = calculationDetail,
+                        style = AppTheme.typography.HelperText,
+                        color = colors.supporting.copy(alpha = 0.82f)
+                    )
+                }
                 if (discount > 0) {
                     Text(
                         text = "${strings.discount}: ${strings.price(discount)}",
@@ -224,7 +252,7 @@ internal fun CompactPriceSummary(
                     color = colors.totalLabel
                 )
                 Text(
-                    text = strings.price(totalPayablePrice),
+                    text = strings.price(animatedTotalPayablePrice),
                     style = AppTheme.typography.SectionTitle,
                     color = if (discount > 0) colors.discount else colors.totalPrice,
                     fontWeight = FontWeight.Bold

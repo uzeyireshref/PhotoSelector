@@ -30,3 +30,23 @@ internal data class SelectionPricing(
     val totalDisplayPrice: Int = photoDisplayPrice + videoDisplayPrice
     val discount: Int = basePrice - totalDisplayPrice
 }
+
+internal fun priceCalculationDetail(
+    photoCount: Int,
+    videoCount: Int,
+    photoOriginalPrice: Int,
+    videoOriginalPrice: Int,
+    strings: LocalizedStrings
+): String {
+    val parts = buildList {
+        if (photoCount > 0) {
+            val unitPrice = photoOriginalPrice / photoCount
+            add("${strings.photoShort}: $photoCount x ${strings.price(unitPrice)}")
+        }
+        if (videoCount > 0) {
+            val unitPrice = videoOriginalPrice / videoCount
+            add("${strings.videoShort}: $videoCount x ${strings.price(unitPrice)}")
+        }
+    }
+    return parts.joinToString(" · ")
+}

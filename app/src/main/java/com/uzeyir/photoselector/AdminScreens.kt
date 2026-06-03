@@ -79,14 +79,14 @@ fun AdminLoginScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     AppIconBadge(Icons.Default.Lock, contentDescription = null)
-                    Text("Admin panel", style = AppTheme.typography.SectionTitle, fontWeight = FontWeight.SemiBold)
+                    Text(strings.adminPanel, style = AppTheme.typography.SectionTitle, fontWeight = FontWeight.SemiBold)
                     AppTextField(
                         value = password,
                         onValueChange = {
                             password = it.filter(Char::isDigit)
                             error = null
                         },
-                        label = "Şifre",
+                        label = strings.adminPassword,
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                         singleLine = true,
@@ -104,14 +104,14 @@ fun AdminLoginScreen(
                     AppPrimaryButton(
                         onClick = {
                             error = when {
-                                password.length < AdminSettings.MIN_ADMIN_PASSWORD_LENGTH -> "Şifre en az 4 haneli olmalı."
+                                password.length < AdminSettings.MIN_ADMIN_PASSWORD_LENGTH -> strings.adminPasswordMinError
                                 onLogin(password) -> null
-                                else -> "Şifre hatalı."
+                                else -> strings.adminPasswordWrong
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Giriş", style = AppTheme.typography.ButtonText)
+                        Text(strings.adminLogin, style = AppTheme.typography.ButtonText)
                     }
                     AppOutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
                         Text(strings.returnHome, style = AppTheme.typography.ButtonText)
@@ -148,7 +148,7 @@ fun AdminPanelScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "Admin Panel",
+                    text = strings.adminPanel,
                     style = AppTheme.typography.ScreenTitle.copy(
                         brush = Brush.linearGradient(
                             colors = listOf(
@@ -173,19 +173,19 @@ fun AdminPanelScreen(
                 AppNavRail {
                     AdminRailItem(
                         selected = selectedSection == AdminPanelSection.Password,
-                        label = "Şifre",
+                        label = strings.adminPassword,
                         icon = { Icon(Icons.Default.Lock, contentDescription = null) },
                         onClick = { onSectionSelected(AdminPanelSection.Password) }
                     )
                     AdminRailItem(
                         selected = selectedSection == AdminPanelSection.Pricing,
-                        label = "Fiyatlar",
+                        label = strings.adminPricing,
                         icon = { Icon(Icons.Default.Payments, contentDescription = null) },
                         onClick = { onSectionSelected(AdminPanelSection.Pricing) }
                     )
                     AdminRailItem(
                         selected = selectedSection == AdminPanelSection.Themes,
-                        label = "Theme-lar",
+                        label = strings.adminThemes,
                         icon = { Icon(Icons.Default.Palette, contentDescription = null) },
                         onClick = { onSectionSelected(AdminPanelSection.Themes) }
                     )
@@ -197,14 +197,16 @@ fun AdminPanelScreen(
                     contentPadding = PaddingValues(0.dp)
                 ) {
                     when (selectedSection) {
-                        AdminPanelSection.Password -> PasswordAdminSection(onChangePassword = onChangePassword)
+                        AdminPanelSection.Password -> PasswordAdminSection(strings = strings, onChangePassword = onChangePassword)
                         AdminPanelSection.Pricing -> PricingAdminSection(
                             pricing = settings.pricing,
+                            strings = strings,
                             onSavePricing = onSavePricing,
                             onResetPricing = onResetPricing
                         )
                         AdminPanelSection.Themes -> ThemesAdminSection(
                             selectedTheme = settings.theme,
+                            strings = strings,
                             onThemeSelected = onThemeSelected
                         )
                     }
@@ -252,6 +254,7 @@ private fun AdminRailItem(
 
 @Composable
 private fun PasswordAdminSection(
+    strings: LocalizedStrings,
     onChangePassword: (String, String, String) -> Boolean
 ) {
     var currentPassword by remember { mutableStateOf("") }
@@ -259,16 +262,16 @@ private fun PasswordAdminSection(
     var repeatedPassword by remember { mutableStateOf("") }
     var message by remember { mutableStateOf<String?>(null) }
 
-    AdminSectionColumn(title = "Şifre değiştir", icon = Icons.Default.Lock) {
-        PasswordField("Eski şifre", currentPassword) {
+    AdminSectionColumn(title = strings.adminPasswordChange, icon = Icons.Default.Lock) {
+        PasswordField(strings.adminCurrentPassword, currentPassword) {
             currentPassword = it.filter(Char::isDigit)
             message = null
         }
-        PasswordField("Yeni şifre", newPassword) {
+        PasswordField(strings.adminNewPassword, newPassword) {
             newPassword = it.filter(Char::isDigit)
             message = null
         }
-        PasswordField("Yeni şifre tekrar", repeatedPassword) {
+        PasswordField(strings.adminRepeatNewPassword, repeatedPassword) {
             repeatedPassword = it.filter(Char::isDigit)
             message = null
         }
@@ -279,14 +282,14 @@ private fun PasswordAdminSection(
                     currentPassword = ""
                     newPassword = ""
                     repeatedPassword = ""
-                    "Şifre değiştirildi."
+                    strings.adminPasswordChanged
                 } else {
-                    "Eski şifre, yeni şifre veya tekrar alanı hatalı."
+                    strings.adminPasswordChangeFailed
                 }
             },
             modifier = Modifier.widthIn(min = 220.dp)
         ) {
-            Text("Değiştir", style = AppTheme.typography.ButtonText)
+            Text(strings.adminChange, style = AppTheme.typography.ButtonText)
         }
         message?.let { Text(it, color = AppTheme.colors.TextPrimary, style = AppTheme.typography.Body) }
     }
@@ -295,6 +298,7 @@ private fun PasswordAdminSection(
 @Composable
 private fun PricingAdminSection(
     pricing: PricingSettings,
+    strings: LocalizedStrings,
     onSavePricing: (PricingSettings) -> Boolean,
     onResetPricing: () -> Unit
 ) {
@@ -313,36 +317,36 @@ private fun PricingAdminSection(
         message = null
     }
 
-    AdminSectionColumn(title = "Fiyatlar", icon = Icons.Default.Payments) {
-        NumberField(label = "Foto fiyatı", value = photoPrice, onValueChange = {
+    AdminSectionColumn(title = strings.adminPricing, icon = Icons.Default.Payments) {
+        NumberField(label = strings.adminPhotoPrice, value = photoPrice, onValueChange = {
             photoPrice = it.filter(Char::isDigit)
             message = null
         })
-        NumberField(label = "Video fiyatı", value = videoPrice, onValueChange = {
+        NumberField(label = strings.adminVideoPrice, value = videoPrice, onValueChange = {
             videoPrice = it.filter(Char::isDigit)
             message = null
         })
-        NumberField(label = "Limit adedi", value = limitCount, onValueChange = {
+        NumberField(label = strings.adminLimitCount, value = limitCount, onValueChange = {
             limitCount = it.filter(Char::isDigit)
             message = null
         })
-        Text("İndirim basamakları", style = AppTheme.typography.CardTitle, fontWeight = FontWeight.SemiBold, color = AppTheme.colors.TextPrimary)
+        Text(strings.adminDiscountTiers, style = AppTheme.typography.CardTitle, fontWeight = FontWeight.SemiBold, color = AppTheme.colors.TextPrimary)
         tiers.forEachIndexed { index, row ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 NumberField(
-                    label = "Adet",
+                    label = strings.adminTierItemCount,
                     value = row.first,
                     onValueChange = { value -> tiers[index] = value.filter(Char::isDigit) to row.second },
                     modifier = Modifier.weight(1f)
                 )
                 NumberField(
-                    label = "Yüzde",
+                    label = strings.adminTierPercent,
                     value = row.second,
                     onValueChange = { value -> tiers[index] = row.first to value.filter(Char::isDigit) },
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = { tiers.removeAt(index) }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Sil", tint = AppTheme.colors.Accent)
+                    Icon(Icons.Default.Delete, contentDescription = strings.adminDelete, tint = AppTheme.colors.Accent)
                 }
             }
         }
@@ -351,7 +355,7 @@ private fun PricingAdminSection(
         ) {
             Icon(Icons.Default.Add, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Basamak ekle", style = AppTheme.typography.ButtonText)
+            Text(strings.adminAddTier, style = AppTheme.typography.ButtonText)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             AppPrimaryButton(
@@ -367,18 +371,18 @@ private fun PricingAdminSection(
                             )
                         }
                     )
-                    message = if (onSavePricing(draft)) "Fiyatlar kaydedildi." else "Fiyat değerlerini kontrol edin."
+                    message = if (onSavePricing(draft)) strings.adminPricingSaved else strings.adminPricingInvalid
                 },
             ) {
-                Text("Kaydet", style = AppTheme.typography.ButtonText)
+                Text(strings.adminSave, style = AppTheme.typography.ButtonText)
             }
             AppOutlinedButton(
                 onClick = {
                     onResetPricing()
-                    message = "Varsayılan fiyatlara dönüldü."
+                    message = strings.adminPricingReset
                 },
             ) {
-                Text("Varsayılana dön", style = AppTheme.typography.ButtonText)
+                Text(strings.adminResetDefaults, style = AppTheme.typography.ButtonText)
             }
         }
         message?.let { Text(it, color = AppTheme.colors.TextPrimary, style = AppTheme.typography.Body) }
@@ -388,9 +392,10 @@ private fun PricingAdminSection(
 @Composable
 private fun ThemesAdminSection(
     selectedTheme: AppThemeOption,
+    strings: LocalizedStrings,
     onThemeSelected: (AppThemeOption) -> Unit
 ) {
-    AdminSectionColumn(title = "Theme-lar", icon = Icons.Default.Palette) {
+    AdminSectionColumn(title = strings.adminThemes, icon = Icons.Default.Palette) {
         AppThemeOption.entries.forEach { theme ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -401,8 +406,8 @@ private fun ThemesAdminSection(
                     onClick = { onThemeSelected(theme) }
                 )
                 Column {
-                    Text(theme.adminLabel(), style = AppTheme.typography.CardTitle, color = AppTheme.colors.TextPrimary)
-                    Text(theme.adminDescription(), style = AppTheme.typography.Caption, color = AppTheme.colors.TextSecondary)
+                    Text(theme.adminLabel(strings), style = AppTheme.typography.CardTitle, color = AppTheme.colors.TextPrimary)
+                    Text(theme.adminDescription(strings), style = AppTheme.typography.Caption, color = AppTheme.colors.TextSecondary)
                 }
             }
         }
@@ -484,14 +489,14 @@ private fun NumberField(
     )
 }
 
-private fun AppThemeOption.adminLabel(): String = when (this) {
-    AppThemeOption.SignatureGold -> "Mat altın"
-    AppThemeOption.RedBlackWhite -> "Koyu kırmızı / siyah / beyaz"
-    AppThemeOption.DeepTeal -> "Tok petrol"
+private fun AppThemeOption.adminLabel(strings: LocalizedStrings): String = when (this) {
+    AppThemeOption.SignatureGold -> strings.themeSignatureGold
+    AppThemeOption.RedBlackWhite -> strings.themeRedBlackWhite
+    AppThemeOption.DeepTeal -> strings.themeDeepTeal
 }
 
-private fun AppThemeOption.adminDescription(): String = when (this) {
-    AppThemeOption.SignatureGold -> "Ana sayfa örneğindeki koyu mat yüzey ve altın aksan."
-    AppThemeOption.RedBlackWhite -> "Koyu siyah yüzey, kırmızı aksan ve beyaz tipografi."
-    AppThemeOption.DeepTeal -> "Sade, tok petrol tonları ve yumuşak sıcak vurgu."
+private fun AppThemeOption.adminDescription(strings: LocalizedStrings): String = when (this) {
+    AppThemeOption.SignatureGold -> strings.themeSignatureGoldDescription
+    AppThemeOption.RedBlackWhite -> strings.themeRedBlackWhiteDescription
+    AppThemeOption.DeepTeal -> strings.themeDeepTealDescription
 }
