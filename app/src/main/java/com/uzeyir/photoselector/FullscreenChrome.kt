@@ -1,6 +1,10 @@
 package com.uzeyir.photoselector
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,6 +16,10 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.RotateRight
@@ -24,7 +32,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -33,7 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.uzeyir.photoselector.ui.theme.PremiumSurfaceOverlay
+import com.uzeyir.photoselector.ui.theme.AppTheme
 import com.uzeyir.photoselector.ui.theme.TaksimError
 import com.uzeyir.photoselector.ui.theme.TaksimSuccess
 
@@ -47,18 +54,31 @@ fun FullscreenTopBar(
     onVideoFullscreen: (() -> Unit)?,
     onBack: () -> Unit
 ) {
-    Surface(
-        color = PremiumSurfaceOverlay,
-        modifier = Modifier.fillMaxWidth()
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color.Black.copy(alpha = 0.65f),
+                        Color.Transparent
+                    )
+                )
+            )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 18.dp, vertical = 14.dp),
+                .padding(horizontal = 22.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBack) {
+            IconButton(
+                onClick = onBack,
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = AppTheme.colors.SurfaceMuted
+                )
+            ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = strings.back, tint = Color.White)
             }
             Spacer(modifier = Modifier.width(12.dp))
@@ -66,25 +86,57 @@ fun FullscreenTopBar(
                 Text(
                     text = "${currentIndex + 1} / $totalCount",
                     color = Color.White,
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
                 )
                 Text(
                     text = photo.displayName,
-                    color = Color.White.copy(alpha = 0.78f),
+                    color = Color.White.copy(alpha = 0.85f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
             when {
-                onRotate != null -> IconButton(onClick = onRotate) {
+                onRotate != null -> IconButton(
+                    onClick = onRotate,
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = AppTheme.colors.SurfaceMuted
+                    )
+                ) {
                     Icon(Icons.AutoMirrored.Filled.RotateRight, contentDescription = strings.rotate, tint = Color.White)
                 }
-                onVideoFullscreen != null -> IconButton(onClick = onVideoFullscreen) {
+                onVideoFullscreen != null -> IconButton(
+                    onClick = onVideoFullscreen,
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = AppTheme.colors.SurfaceMuted
+                    )
+                ) {
                     Icon(Icons.Default.Fullscreen, contentDescription = strings.fullscreen, tint = Color.White)
                 }
             }
         }
+    }
+}
+
+@Composable
+fun FullscreenBottomBarContainer(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color.Transparent,
+                        Color.Black.copy(alpha = 0.70f)
+                    )
+                )
+            )
+    ) {
+        content()
     }
 }
 
@@ -103,7 +155,7 @@ fun FullscreenBottomBar(
     onReviewClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    PremiumBottomBar(modifier = modifier) {
+    FullscreenBottomBarContainer(modifier = modifier) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             if (maxWidth >= 600.dp) {
                 TabletFullscreenBottomBarContent(
@@ -156,26 +208,51 @@ private fun PhoneFullscreenBottomBarContent(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 14.dp),
+            .padding(horizontal = 24.dp, vertical = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+        FullscreenPriceSummaryCard(
+            modifier = Modifier.weight(1f)
         ) {
-            val discount = (photoOriginalPrice + videoOriginalPrice) - (photoPayablePrice + videoPayablePrice)
-            Text("${strings.selected}: ${photoCount + videoCount}", color = Color.White, style = MaterialTheme.typography.titleMedium)
-            Text("${strings.photoShort}: $photoCount   ${strings.videoShort}: $videoCount", color = Color.White.copy(alpha = 0.72f))
-            if (discount > 0) {
-                Text("${strings.discount}: ${strings.price(discount)}", color = TaksimSuccess, style = MaterialTheme.typography.bodyMedium)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                val discount = (photoOriginalPrice + videoOriginalPrice) - (photoPayablePrice + videoPayablePrice)
+                Text(
+                    text = "${strings.selected}: ${photoCount + videoCount}",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "${strings.photoShort}: $photoCount   ${strings.videoShort}: $videoCount",
+                    color = Color.White.copy(alpha = 0.75f),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                if (discount > 0) {
+                    Text(
+                        text = "${strings.discount}: ${strings.price(discount)}",
+                        color = TaksimSuccess,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        text = strings.price(photoOriginalPrice + videoOriginalPrice),
+                        color = Color.White.copy(alpha = 0.66f),
+                        textDecoration = TextDecoration.LineThrough,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                Text(
+                    text = "${strings.total}: ${strings.price(totalPayablePrice)}",
+                    color = if (discount > 0) TaksimSuccess else Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
             }
-            Text("${strings.total}: ${strings.price(totalPayablePrice)}", color = Color.White, style = MaterialTheme.typography.titleLarge)
         }
         Spacer(modifier = Modifier.width(14.dp))
         FullscreenLikeButton(isLiked = isLiked, strings = strings, onLikeToggle = onLikeToggle)
-        PremiumPrimaryButton(onClick = onReviewClick) {
-            Text(strings.review)
+        AppPrimaryButton(onClick = onReviewClick) {
+            Text(strings.review, style = AppTheme.typography.ButtonText)
         }
     }
 }
@@ -198,39 +275,73 @@ private fun TabletFullscreenBottomBarContent(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 28.dp, vertical = 16.dp),
+            .padding(horizontal = 28.dp, vertical = 22.dp),
         horizontalArrangement = Arrangement.spacedBy(18.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        CompactPriceSummary(
-            photoCount = photoCount,
-            videoCount = videoCount,
-            discount = (photoOriginalPrice + videoOriginalPrice) - (photoPayablePrice + videoPayablePrice),
-            totalPayablePrice = totalPayablePrice,
-            strings = strings,
-            modifier = Modifier.weight(1.5f),
-            colors = PriceSummaryColors(
-                selected = Color.White,
-                supporting = Color.White.copy(alpha = 0.74f),
-                discount = TaksimSuccess,
-                totalLabel = Color.White.copy(alpha = 0.72f),
-                totalPrice = Color.White
-            ),
-            containerColor = Color.White.copy(alpha = 0.10f),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        )
+        FullscreenPriceSummaryCard(
+            modifier = Modifier.weight(1.5f)
+        ) {
+            val discount = (photoOriginalPrice + videoOriginalPrice) - (photoPayablePrice + videoPayablePrice)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "${strings.selected}: ${photoCount + videoCount}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "${strings.photoShort}: $photoCount   ${strings.videoShort}: $videoCount",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.75f)
+                    )
+                    if (discount > 0) {
+                        Text(
+                            text = "${strings.discount}: ${strings.price(discount)}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TaksimSuccess
+                        )
+                    }
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = strings.total,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.White.copy(alpha = 0.70f)
+                    )
+                    if (discount > 0) {
+                        Text(
+                            text = strings.price(photoOriginalPrice + videoOriginalPrice),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White.copy(alpha = 0.66f),
+                            textDecoration = TextDecoration.LineThrough
+                        )
+                    }
+                    Text(
+                        text = strings.price(totalPayablePrice),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = if (discount > 0) TaksimSuccess else Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
         Row(
             modifier = Modifier.weight(1f),
             horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
             verticalAlignment = Alignment.CenterVertically
         ) {
             FullscreenLikeButton(isLiked = isLiked, strings = strings, onLikeToggle = onLikeToggle)
-            PremiumPrimaryButton(
+            AppPrimaryButton(
                 onClick = onReviewClick,
                 contentPadding = PaddingValues(horizontal = 22.dp, vertical = 12.dp)
             ) {
-                Text(strings.review, style = MaterialTheme.typography.titleMedium)
+                Text(strings.review, style = AppTheme.typography.ButtonText)
             }
         }
     }
@@ -246,7 +357,7 @@ private fun FullscreenLikeButton(
         onClick = onLikeToggle,
         modifier = Modifier.size(58.dp),
         colors = IconButtonDefaults.filledIconButtonColors(
-            containerColor = Color.White.copy(alpha = 0.16f),
+            containerColor = AppTheme.colors.SurfaceMuted,
             contentColor = if (isLiked) TaksimError else Color.White
         )
     ) {
@@ -273,7 +384,7 @@ fun VideoCompactBottomBar(
     onReviewClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    PremiumBottomBar(modifier = modifier) {
+    FullscreenBottomBarContainer(modifier = modifier) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             if (maxWidth >= 600.dp) {
                 TabletFullscreenBottomBarContent(
@@ -294,25 +405,40 @@ fun VideoCompactBottomBar(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
-                        .padding(horizontal = 18.dp, vertical = 10.dp),
+                        .padding(horizontal = 18.dp, vertical = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "${strings.photo}: $photoCount  ${strings.video}: $videoCount",
-                            color = Color.White.copy(alpha = 0.78f),
-                            style = MaterialTheme.typography.labelLarge
-                        )
-                        Text(
-                            text = strings.price(totalPayablePrice),
-                            color = Color.White,
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                    FullscreenPriceSummaryCard(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        val originalTotalPrice = photoOriginalPrice + videoOriginalPrice
+                        val discount = originalTotalPrice - totalPayablePrice
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                text = "${strings.photo}: $photoCount  ${strings.video}: $videoCount",
+                                color = Color.White.copy(alpha = 0.75f),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            if (discount > 0) {
+                                Text(
+                                    text = strings.price(originalTotalPrice),
+                                    color = Color.White.copy(alpha = 0.66f),
+                                    textDecoration = TextDecoration.LineThrough,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            Text(
+                                text = strings.price(totalPayablePrice),
+                                color = if (discount > 0) TaksimSuccess else Color.White,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                     FullscreenLikeButton(isLiked = isLiked, strings = strings, onLikeToggle = onLikeToggle)
-                    PremiumPrimaryButton(onClick = onReviewClick) {
-                        Text(strings.review)
+                    AppPrimaryButton(onClick = onReviewClick) {
+                        Text(strings.review, style = AppTheme.typography.ButtonText)
                     }
                 }
             }
@@ -334,15 +460,16 @@ fun SelectionPriceSummary(
     discountedColor: Color = TaksimSuccess,
     modifier: Modifier = Modifier
 ) {
-    PremiumPriceSummaryCard(
-        color = textColor.copy(alpha = 0.08f),
-        modifier = modifier
+    AppCard(
+        containerColor = AppTheme.colors.SurfaceElevated,
+        modifier = modifier,
+        radius = AppTheme.shapes.Button,
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
-            Text(strings.total, color = textColor.copy(alpha = 0.72f), style = MaterialTheme.typography.labelMedium)
+            Text(strings.total, color = textColor, style = MaterialTheme.typography.labelMedium)
             if (photoCount > 0) {
                 PriceLine(
                     label = "${strings.photo}: $photoCount",
@@ -385,7 +512,7 @@ fun PriceLine(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, color = textColor.copy(alpha = 0.72f), style = MaterialTheme.typography.bodySmall)
+        Text(label, color = textColor, style = MaterialTheme.typography.bodySmall)
         if (originalPrice > payablePrice) {
             Text(
                 text = strings.price(originalPrice),
@@ -408,3 +535,31 @@ fun PriceLine(
     }
 }
 
+@Composable
+fun FullscreenPriceSummaryCard(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    val shape = RoundedCornerShape(12.dp)
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(AppTheme.colors.Surface)
+            .border(
+                BorderStroke(
+                    width = 1.dp,
+                    brush = Brush.linearGradient(
+                        listOf(
+                            AppTheme.colors.BorderAccent.copy(alpha = 0.52f),
+                            AppTheme.colors.BorderSubtle.copy(alpha = 0.40f),
+                            AppTheme.colors.BorderAccent.copy(alpha = 0.52f)
+                        )
+                    )
+                ),
+                shape
+            )
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+    ) {
+        content()
+    }
+}

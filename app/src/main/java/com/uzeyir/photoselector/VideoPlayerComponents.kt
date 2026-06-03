@@ -48,7 +48,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import com.uzeyir.photoselector.ui.theme.PremiumSurfaceOverlay
+import com.uzeyir.photoselector.ui.theme.AppTheme
 import androidx.media3.common.MediaItem as PlayerMediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
@@ -147,7 +147,7 @@ fun VideoPoster(
             onClick = onPlay,
             modifier = Modifier.size(84.dp),
             colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = PremiumSurfaceOverlay,
+                containerColor = AppTheme.colors.SurfaceMuted,
                 contentColor = Color.White
             )
         ) {
@@ -244,7 +244,7 @@ fun VideoFullscreenPlayer(
 
         if (shouldShowFullscreenVideoLoading(playbackState)) {
             Surface(
-                color = PremiumSurfaceOverlay,
+                color = AppTheme.colors.SurfaceMuted,
                 shape = CircleShape,
                 modifier = Modifier.size(72.dp)
             ) {
@@ -265,7 +265,7 @@ fun VideoFullscreenPlayer(
                 .statusBarsPadding()
                 .padding(top = 12.dp, end = 16.dp),
             colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = PremiumSurfaceOverlay,
+                containerColor = AppTheme.colors.SurfaceMuted,
                 contentColor = Color.White
             )
         ) {
@@ -305,8 +305,7 @@ fun VideoPlaybackControls(
     onSeekTo: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    PremiumPriceSummaryCard(
-        color = PremiumSurfaceOverlay,
+    FullscreenPriceSummaryCard(
         modifier = modifier.fillMaxWidth()
     ) {
         Row(

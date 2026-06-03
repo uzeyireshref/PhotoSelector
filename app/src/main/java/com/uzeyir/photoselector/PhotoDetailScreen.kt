@@ -28,7 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.uzeyir.photoselector.ui.theme.PremiumSurfaceOverlay
+import com.uzeyir.photoselector.ui.theme.AppTheme
 import kotlinx.coroutines.launch
 
 @Composable
@@ -143,7 +143,7 @@ fun PhotoDetailScreen(
                         .align(Alignment.CenterStart)
                         .padding(start = 18.dp),
                     colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = PremiumSurfaceOverlay,
+                        containerColor = AppTheme.colors.SurfaceMuted,
                         contentColor = Color.White
                     )
                 ) {
@@ -161,7 +161,7 @@ fun PhotoDetailScreen(
                         .align(Alignment.CenterEnd)
                         .padding(end = 18.dp),
                     colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = PremiumSurfaceOverlay,
+                        containerColor = AppTheme.colors.SurfaceMuted,
                         contentColor = Color.White
                     )
                 ) {

@@ -1,11 +1,7 @@
 package com.uzeyir.photoselector
 
 import androidx.compose.ui.graphics.Color
-import com.uzeyir.photoselector.ui.theme.PremiumAccent
-import com.uzeyir.photoselector.ui.theme.PremiumBackground
-import com.uzeyir.photoselector.ui.theme.PremiumOutline
-import com.uzeyir.photoselector.ui.theme.PremiumSurface
-import com.uzeyir.photoselector.ui.theme.PremiumSurfaceHigh
+import com.uzeyir.photoselector.ui.theme.appColorsForOption
 import com.uzeyir.photoselector.ui.theme.TaksimDarkBackground
 import com.uzeyir.photoselector.ui.theme.TaksimLightBackground
 import com.uzeyir.photoselector.ui.theme.TaksimPrimaryRed
@@ -28,38 +24,36 @@ class ThemePaletteTest {
     }
 
     @Test
-    fun selectableThemesKeepExistingThemesAndAddThreeGalleryFriendlyPalettes() {
+    fun selectableThemesAreOnlyTheThreeMatteDesignPalettes() {
         assertEquals(
             listOf(
-                AppThemeOption.TaksimLight,
-                AppThemeOption.Dark,
-                AppThemeOption.RedWhite,
-                AppThemeOption.HighContrastDark,
-                AppThemeOption.MonoLight,
-                AppThemeOption.GallerySage,
-                AppThemeOption.MidnightTeal
+                AppThemeOption.SignatureGold,
+                AppThemeOption.RedBlackWhite,
+                AppThemeOption.DeepTeal
             ),
             AppThemeOption.entries
         )
     }
 
     @Test
-    fun darkThemesUseSoftDarkSurfacesInsteadOfPureBlack() {
-        val midnight = appColorScheme(AppThemeOption.MidnightTeal)
+    fun matteThemesUseOpaqueDarkSurfaces() {
+        AppThemeOption.entries.forEach { theme ->
+            val colors = appColorsForOption(theme)
 
-        assertNotEquals(Color(0xFF000000), midnight.background)
-        assertNotEquals(Color(0xFF000000), midnight.surface)
+            assertEquals(1f, colors.Surface.alpha, 0.0f)
+            assertEquals(1f, colors.SurfaceElevated.alpha, 0.0f)
+            assertEquals(1f, colors.SurfaceMuted.alpha, 0.0f)
+        }
     }
 
     @Test
-    fun premiumDarkTokensUseMatteCharcoalSurfacesAndRestrainedAccent() {
-        assertEquals(Color(0xFF0B0D10), PremiumBackground)
-        assertEquals(Color(0xFF15181D), PremiumSurface)
-        assertEquals(Color(0xFF20242B), PremiumSurfaceHigh)
-        assertEquals(Color(0xFF3A414C), PremiumOutline)
-        assertEquals(Color(0xFFC54B55), PremiumAccent)
-        assertNotEquals(Color(0xFF000000), PremiumBackground)
-        assertNotEquals(PremiumBackground, PremiumSurface)
+    fun redBlackWhiteThemeUsesRequestedPaletteFamily() {
+        val colors = appColorsForOption(AppThemeOption.RedBlackWhite)
+
+        assertEquals(Color(0xFF090909), colors.Background)
+        assertEquals(Color(0xFF111111), colors.Surface)
+        assertEquals(Color(0xFFC21A24), colors.Accent)
+        assertEquals(Color(0xFFF7F3F0), colors.TextPrimary)
     }
 
     @Test

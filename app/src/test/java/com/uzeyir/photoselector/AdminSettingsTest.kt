@@ -15,7 +15,7 @@ class AdminSettingsTest {
         assertEquals(300, settings.pricing.photoUnitPrice)
         assertEquals(1000, settings.pricing.videoUnitPrice)
         assertEquals(10, settings.pricing.priceLimitCount)
-        assertEquals(AppThemeOption.Dark, settings.theme)
+        assertEquals(AppThemeOption.SignatureGold, settings.theme)
     }
 
     @Test
@@ -51,7 +51,7 @@ class AdminSettingsTest {
         val updated = AdminSettings.Default.copy(
             adminPassword = "9876",
             pricing = AdminSettings.Default.pricing.copy(photoUnitPrice = 500),
-            theme = AppThemeOption.MidnightTeal
+            theme = AppThemeOption.DeepTeal
         )
 
         store.save(updated)

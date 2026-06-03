@@ -1,6 +1,7 @@
 package com.uzeyir.photoselector
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -17,7 +19,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.uzeyir.photoselector.ui.theme.AppTheme
 import com.uzeyir.photoselector.ui.theme.TaksimSuccess
 
 @Composable
@@ -33,7 +37,7 @@ fun BottomPriceBar(
     buttonText: String,
     strings: LocalizedStrings
 ) {
-    PremiumBottomBar {
+    AppBottomSummaryBar {
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
@@ -95,16 +99,17 @@ private fun PhoneBottomPriceBarContent(
         CompactPriceSummary(
             photoCount = photoCount,
             videoCount = videoCount,
+            originalTotalPrice = photoOriginalPrice + videoOriginalPrice,
             discount = discount,
             totalPayablePrice = totalPayablePrice,
             strings = strings,
             modifier = Modifier.weight(1f)
         )
-        PremiumPrimaryButton(
+        AppPrimaryButton(
             onClick = onReviewClick,
             contentPadding = PaddingValues(horizontal = 22.dp, vertical = 14.dp)
         ) {
-            Text(buttonText, fontWeight = FontWeight.SemiBold)
+            Text(buttonText, style = AppTheme.typography.ButtonText, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -126,32 +131,27 @@ private fun TabletBottomPriceBarContent(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 28.dp, vertical = 18.dp),
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
+            .padding(horizontal = 26.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         CompactPriceSummary(
             photoCount = photoCount,
             videoCount = videoCount,
+            originalTotalPrice = photoOriginalPrice + videoOriginalPrice,
             discount = discount,
             totalPayablePrice = totalPayablePrice,
             strings = strings,
             modifier = Modifier.weight(1f)
         )
-        Column(
-            modifier = Modifier.weight(0.55f),
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+        AppPrimaryButton(
+            onClick = onReviewClick,
+            contentPadding = PaddingValues(horizontal = 34.dp, vertical = 15.dp),
+            modifier = Modifier
+                .widthIn(min = 260.dp, max = 320.dp)
+                .heightIn(min = 56.dp)
         ) {
-            PremiumPrimaryButton(
-                onClick = onReviewClick,
-                contentPadding = PaddingValues(horizontal = 30.dp, vertical = 16.dp),
-                modifier = Modifier
-                    .widthIn(min = 240.dp)
-                    .heightIn(min = 58.dp)
-            ) {
-                Text(buttonText, style = MaterialTheme.typography.titleMedium)
-            }
+            Text(buttonText, style = AppTheme.typography.SectionTitle)
         }
     }
 }
@@ -168,68 +168,92 @@ internal data class PriceSummaryColors(
 internal fun CompactPriceSummary(
     photoCount: Int,
     videoCount: Int,
+    originalTotalPrice: Int,
     discount: Int,
     totalPayablePrice: Int,
     strings: LocalizedStrings,
     modifier: Modifier = Modifier,
     colors: PriceSummaryColors = PriceSummaryColors(
-        selected = MaterialTheme.colorScheme.onSurface,
-        supporting = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.64f),
+        selected = AppTheme.colors.TextPrimary,
+        supporting = AppTheme.colors.TextSecondary,
         discount = TaksimSuccess,
-        totalLabel = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.64f),
-        totalPrice = MaterialTheme.colorScheme.primary
+        totalLabel = AppTheme.colors.TextSecondary,
+        totalPrice = AppTheme.colors.TextPrimary
     ),
     containerColor: Color = Color.Transparent,
     contentPadding: PaddingValues = PaddingValues(0.dp),
-    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(22.dp)
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(28.dp)
 ) {
-    PremiumPriceSummaryCard(
-        modifier = modifier,
-        color = if (containerColor == Color.Transparent) {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
-        } else {
-            containerColor
-        },
-        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
-    ) {
+    val summaryContent: @Composable () -> Unit = {
         Row(
             modifier = Modifier.padding(contentPadding),
             horizontalArrangement = horizontalArrangement,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(
+                modifier = Modifier.widthIn(min = 160.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 Text(
                     text = "${strings.selected}: ${photoCount + videoCount}",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = colors.selected
+                    style = AppTheme.typography.CardTitle,
+                    color = colors.selected,
+                    fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "${strings.photoShort}: $photoCount   ${strings.videoShort}: $videoCount",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = AppTheme.typography.Body,
                     color = colors.supporting
                 )
                 if (discount > 0) {
                     Text(
                         text = "${strings.discount}: ${strings.price(discount)}",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = AppTheme.typography.Body,
                         color = colors.discount
                     )
                 }
             }
-            Column(horizontalAlignment = Alignment.Start) {
+            Column(
+                modifier = Modifier.width(120.dp),
+                horizontalAlignment = Alignment.Start,
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
                 Text(
                     text = strings.total,
-                    style = MaterialTheme.typography.labelLarge,
+                    style = AppTheme.typography.HelperText,
                     color = colors.totalLabel
                 )
                 Text(
                     text = strings.price(totalPayablePrice),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = colors.totalPrice,
-                    fontWeight = FontWeight.SemiBold
+                    style = AppTheme.typography.SectionTitle,
+                    color = if (discount > 0) colors.discount else colors.totalPrice,
+                    fontWeight = FontWeight.Bold
                 )
+                if (discount > 0) {
+                    Text(
+                        text = strings.price(originalTotalPrice),
+                        style = AppTheme.typography.Body,
+                        color = colors.supporting.copy(alpha = 0.72f),
+                        textDecoration = TextDecoration.LineThrough
+                    )
+                }
             }
         }
     }
+    if (containerColor == Color.Transparent) {
+        Box(
+            modifier = modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+        ) {
+            summaryContent()
+        }
+    } else {
+        AppCard(
+            modifier = modifier,
+            containerColor = containerColor,
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+            radius = AppTheme.shapes.Button
+        ) {
+            summaryContent()
+        }
+    }
 }
-

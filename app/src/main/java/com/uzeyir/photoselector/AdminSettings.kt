@@ -3,19 +3,15 @@ package com.uzeyir.photoselector
 import android.content.SharedPreferences
 
 enum class AppThemeOption {
-    TaksimLight,
-    Dark,
-    RedWhite,
-    HighContrastDark,
-    MonoLight,
-    GallerySage,
-    MidnightTeal
+    SignatureGold,
+    RedBlackWhite,
+    DeepTeal
 }
 
 data class AdminSettings(
     val adminPassword: String = DEFAULT_ADMIN_PASSWORD,
     val pricing: PricingSettings = PricingSettings.Default,
-    val theme: AppThemeOption = AppThemeOption.Dark
+    val theme: AppThemeOption = AppThemeOption.SignatureGold
 ) {
     fun canChangePassword(currentPassword: String, newPassword: String, repeatedPassword: String): Boolean =
         currentPassword == adminPassword &&
@@ -51,7 +47,7 @@ class SharedPreferencesAdminSettingsStore(
         ).takeIf { it.isValid() } ?: PricingSettings.Default
         val theme = preferences.getString(KEY_THEME, null)
             ?.let { saved -> AppThemeOption.entries.firstOrNull { it.name == saved } }
-            ?: AppThemeOption.Dark
+            ?: AppThemeOption.SignatureGold
         return AdminSettings(
             adminPassword = password,
             pricing = pricing,

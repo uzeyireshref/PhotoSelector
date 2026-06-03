@@ -36,21 +36,76 @@ internal fun fallbackDocumentShareIntent(files: List<FolderDocumentData>): Inten
 
 suspend fun prepareWhatsAppDocumentShareFiles(
     context: Context,
-    files: List<FolderDocumentData>
+    files: List<FolderDocumentData>,
+    onProgress: (ShareStatus.Preparing) -> Unit = {}
 ): List<FolderDocumentData> = withContext(Dispatchers.IO) {
     val shareDir = File(context.cacheDir, DOCUMENT_SHARE_CACHE_DIR).apply {
         deleteRecursively()
         mkdirs()
     }
+    val totalBytes = files
+        .map { it.sizeBytes }
+        .takeIf { sizes -> sizes.all { it != null } }
+        ?.sumOf { it ?: 0L }
+    val preparedBytesByFile = LongArray(files.size)
+
+    fun totalPreparedBytes(): Long =
+        preparedBytesByFile.sum()
+
+    fun publishProgress(
+        preparedCount: Int,
+        currentFileName: String,
+        currentFileBytes: Long,
+        currentFileTotalBytes: Long?
+    ) {
+        onProgress(
+            ShareStatus.Preparing(
+                preparedFiles = preparedCount,
+                totalFiles = files.size,
+                preparedBytes = totalPreparedBytes(),
+                totalBytes = totalBytes,
+                currentFileName = currentFileName,
+                currentFileBytes = currentFileBytes,
+                currentFileTotalBytes = currentFileTotalBytes
+            )
+        )
+    }
 
     files.mapIndexed { index, file ->
+        publishProgress(
+            preparedCount = index,
+            currentFileName = file.displayName,
+            currentFileBytes = 0L,
+            currentFileTotalBytes = file.sizeBytes
+        )
         val outputFile = File(shareDir, documentShareCacheFileName(file.displayName, index))
         context.contentResolver.openInputStream(file.uri).use { input ->
             requireNotNull(input) { "Could not open ${file.displayName}" }
             outputFile.outputStream().use { output ->
-                input.copyTo(output)
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                var copiedBytes = 0L
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    output.write(buffer, 0, read)
+                    copiedBytes += read
+                    preparedBytesByFile[index] = copiedBytes
+                    publishProgress(
+                        preparedCount = index,
+                        currentFileName = file.displayName,
+                        currentFileBytes = copiedBytes,
+                        currentFileTotalBytes = file.sizeBytes
+                    )
+                }
             }
         }
+        preparedBytesByFile[index] = file.sizeBytes ?: outputFile.length()
+        publishProgress(
+            preparedCount = index + 1,
+            currentFileName = file.displayName,
+            currentFileBytes = preparedBytesByFile[index],
+            currentFileTotalBytes = file.sizeBytes
+        )
         FolderDocumentData(
             uri = FileProvider.getUriForFile(
                 context,

@@ -20,11 +20,14 @@ class GalleryLayoutPolicyTest {
         assertEquals(3, galleryColumnCountForWidthDp(599))
         assertEquals(4, galleryColumnCountForWidthDp(600))
         assertEquals(4, galleryColumnCountForWidthDp(866))
+        assertEquals(5, galleryColumnCountForWidthDp(900))
+        assertEquals(6, galleryColumnCountForWidthDp(1200))
     }
 
     @Test
     fun thumbnailRequestSizeFollowsGridCellWidth() {
         assertEquals(362, thumbnailRequestSizePx(widthDp = 411, density = 2.75f))
         assertEquals(452, thumbnailRequestSizePx(widthDp = 866, density = 2.125f))
+        assertEquals(419, thumbnailRequestSizePx(widthDp = 1200, density = 2.125f))
     }
 }

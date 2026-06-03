@@ -192,12 +192,42 @@ class FolderSelectionScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("Foto: 4").assertIsDisplayed()
-        composeRule.onNodeWithText("Video: 4").assertIsDisplayed()
-        composeRule.onNodeWithText("Kopyalanacak: 12 dosya").assertIsDisplayed()
+        composeRule.onNodeWithText("Seçilen dosyaları kontrol edin ve işlemi başlatın.").assertIsDisplayed()
+        composeRule.onNodeWithText("Foto").assertIsDisplayed()
+        composeRule.onNodeWithText("Video").assertIsDisplayed()
+        composeRule.onNodeWithText("RAW dahil").assertIsDisplayed()
+        composeRule.onNodeWithText("Eşleşen RAW").assertIsDisplayed()
+        composeRule.onNodeWithText("Kopyalanacak").assertIsDisplayed()
+        composeRule.onNodeWithText("12 dosya").assertIsDisplayed()
+        composeRule.onNodeWithText("Evet").assertIsDisplayed()
         composeRule.onNodeWithText("İndirim: 260 TL").assertIsDisplayed()
-        composeRule.onNodeWithText("Toplam: 4940 TL").assertIsDisplayed()
+        composeRule.onNodeWithText("5200 TL").assertIsDisplayed()
+        composeRule.onNodeWithText("4940 TL").assertIsDisplayed()
+        composeRule.onNodeWithText("Dosyalarınız güvenli şekilde işlenecektir.").assertIsDisplayed()
         composeRule.onAllNodesWithText("Fiyat").assertCountEquals(0)
+    }
+
+    @Test
+    fun confirmationScreenShowsGreenWhatsAppDocumentActionWithIcon() {
+        composeRule.setContent {
+            PhotoSelectorTheme(dynamicColor = false) {
+                ConfirmationScreen(
+                    summary = ExportSummary(selectedJpgCount = 1, matchedRawCount = 1),
+                    exportStatus = ExportStatus.Idle,
+                    includeRawFiles = true,
+                    strings = UiText.strings(AppLanguage.Turkish),
+                    onBack = {},
+                    onIncludeRawFilesChange = {},
+                    onShareWhatsApp = {},
+                    onConfirmExport = {},
+                    onReturnHome = {},
+                    onReturnToGallery = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("WhatsApp belge olarak gönder").assertIsDisplayed()
+        composeRule.onNodeWithText("WhatsApp belge olarak gönder").assertIsDisplayed()
     }
 
     @Test

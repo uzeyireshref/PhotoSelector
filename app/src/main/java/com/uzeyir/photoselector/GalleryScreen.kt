@@ -18,7 +18,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -26,6 +29,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,11 +53,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.uzeyir.photoselector.ui.theme.TaksimDarkBackground
-import com.uzeyir.photoselector.ui.theme.PremiumSurfaceOverlay
-import com.uzeyir.photoselector.ui.theme.TaksimError
+import com.uzeyir.photoselector.ui.theme.AppTheme
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -80,73 +83,113 @@ fun GalleryScreen(
     val visibleMedia = if (activeTab == GalleryTab.All) photos else likedMediaItems
     val gridState = if (activeTab == GalleryTab.All) allGridState else favoritesGridState
 
-    PremiumScreenBackground {
+    AppScreenBackground {
         Column(modifier = Modifier.fillMaxSize()) {
-        GalleryHeader(
-            selectedTab = activeTab,
-            totalCount = photos.size,
-            favoriteCount = likedMediaItems.size,
-            strings = strings,
-            onTabSelected = selectTab
-        )
+            GalleryHeader(
+                selectedTab = activeTab,
+                totalCount = photos.size,
+                favoriteCount = likedMediaItems.size,
+                strings = strings,
+                onTabSelected = selectTab
+            )
 
-        if (activeTab == GalleryTab.Favorites && visibleMedia.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                PremiumEmptyState(
-                    title = strings.noFavoritesYet,
-                    icon = Icons.Default.FavoriteBorder,
-                    modifier = Modifier.padding(24.dp)
-                )
-            }
-        } else {
-            BoxWithConstraints(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f)
-            ) {
-                val density = LocalDensity.current
-                val widthDp = maxWidth.value.roundToInt()
-                val columnCount = galleryColumnCountForWidthDp(widthDp)
-                val thumbnailSizePx = thumbnailRequestSizePx(widthDp, density.density)
-                val gridPadding = if (columnCount >= 4) 14.dp else 10.dp
-
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(columnCount),
-                    state = gridState,
-                    contentPadding = PaddingValues(gridPadding),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+            if (activeTab == GalleryTab.Favorites && visibleMedia.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
                 ) {
-                    items(
-                        items = visibleMedia,
-                        key = { it.uri },
-                        contentType = { it.mediaType }
-                    ) { photo ->
-                        PhotoItem(
-                            media = photo,
-                            isLiked = likedPhotoUris.contains(photo.uri),
-                            strings = strings,
-                            thumbnailSizePx = thumbnailSizePx,
-                            isScrollInProgress = gridState.isScrollInProgress,
-                            onClick = {
-                                if (activeTab == GalleryTab.Favorites) {
-                                    onFavoritePhotoClick(photo.uri)
-                                } else {
-                                    onPhotoClick(photo.uri)
-                                }
-                            },
-                            onLikeToggle = { onLikeToggle(photo.uri) }
-                        )
+                    EmptyFavoritesState(
+                        title = strings.noFavoritesYet,
+                        modifier = Modifier.padding(24.dp)
+                    )
+                }
+            } else {
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .weight(1f)
+                ) {
+                    val density = LocalDensity.current
+                    val widthDp = maxWidth.value.roundToInt()
+                    val columnCount = galleryColumnCountForWidthDp(widthDp)
+                    val thumbnailSizePx = thumbnailRequestSizePx(widthDp, density.density)
+                    val gridPadding = if (columnCount >= 4) 18.dp else 12.dp
+                    val gridSpacing = if (columnCount >= 4) 10.dp else 8.dp
+
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(columnCount),
+                        state = gridState,
+                        contentPadding = PaddingValues(gridPadding),
+                        verticalArrangement = Arrangement.spacedBy(gridSpacing),
+                        horizontalArrangement = Arrangement.spacedBy(gridSpacing)
+                    ) {
+                        items(
+                            items = visibleMedia,
+                            key = { it.uri },
+                            contentType = { it.mediaType }
+                        ) { photo ->
+                            PhotoItem(
+                                media = photo,
+                                isLiked = likedPhotoUris.contains(photo.uri),
+                                strings = strings,
+                                thumbnailSizePx = thumbnailSizePx,
+                                isScrollInProgress = gridState.isScrollInProgress,
+                                onClick = {
+                                    if (activeTab == GalleryTab.Favorites) {
+                                        onFavoritePhotoClick(photo.uri)
+                                    } else {
+                                        onPhotoClick(photo.uri)
+                                    }
+                                },
+                                onLikeToggle = { onLikeToggle(photo.uri) }
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun EmptyFavoritesState(
+    title: String,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(22.dp)
+    Row(
+        modifier = modifier
+            .widthIn(min = 280.dp, max = 420.dp)
+            .background(AppTheme.colors.SurfaceElevated, shape)
+            .border(1.dp, AppTheme.colors.BorderSubtle.copy(alpha = 0.72f), shape)
+            .padding(horizontal = 22.dp, vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(46.dp)
+                .background(AppTheme.colors.SurfaceMuted, CircleShape)
+                .border(1.dp, AppTheme.colors.BorderSubtle.copy(alpha = 0.72f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.FavoriteBorder,
+                contentDescription = null,
+                tint = AppTheme.colors.TextPrimary,
+                modifier = Modifier.size(24.dp)
+            )
         }
+        Text(
+            text = title,
+            style = AppTheme.typography.CardTitle,
+            color = AppTheme.colors.TextPrimary,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -158,39 +201,64 @@ private fun GalleryHeader(
     strings: LocalizedStrings,
     onTabSelected: (GalleryTab) -> Unit
 ) {
-    PremiumCard(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
-        radius = PremiumRadius.lg
+            .padding(horizontal = 22.dp, vertical = 18.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
+        val compact = maxWidth < 620.dp
+        val titleBlock: @Composable () -> Unit = {
+            Column {
                 Text(
                     text = strings.galleryTitle,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    style = (if (compact) AppTheme.typography.SectionTitle else AppTheme.typography.ScreenTitle).copy(
+                        brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                            colors = listOf(
+                                AppTheme.colors.Accent,
+                                AppTheme.colors.AccentSoft
+                            )
+                        )
+                    ),
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "${strings.photo}: $totalCount   ${strings.selected}: $favoriteCount",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f)
+                    text = "${strings.photo}: $totalCount    ${strings.selected}: $favoriteCount",
+                    style = AppTheme.typography.Body,
+                    color = AppTheme.colors.TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-            PremiumSegmentedControl(
+        }
+        val tabs: @Composable (Modifier) -> Unit = { tabModifier ->
+            AppSegmentedControl(
                 options = listOf(strings.allPhotos, "${strings.favorites} ($favoriteCount)"),
                 selectedIndex = if (selectedTab == GalleryTab.All) 0 else 1,
                 onSelected = { index ->
                     onTabSelected(if (index == 0) GalleryTab.All else GalleryTab.Favorites)
-                }
+                },
+                modifier = tabModifier,
+                icons = listOf(Icons.Default.PhotoLibrary, Icons.Default.Favorite)
             )
+        }
+        if (compact) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                titleBlock()
+                tabs(Modifier.fillMaxWidth())
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.widthIn(min = 220.dp, max = 340.dp)) {
+                    titleBlock()
+                }
+                tabs(Modifier.widthIn(min = 420.dp, max = 560.dp))
+            }
         }
     }
 }
@@ -243,10 +311,9 @@ fun PhotoItem(
         }
     }
 
-    PremiumGalleryItem(
+    AppGalleryItem(
         selected = isLiked,
         modifier = Modifier
-            .padding(3.dp)
             .aspectRatio(1f)
             .clickable(onClick = onClick)
     ) {
@@ -255,7 +322,7 @@ fun PhotoItem(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(TaksimDarkBackground),
+                        .background(AppTheme.colors.Background),
                     contentAlignment = Alignment.Center
                 ) {
                     AsyncImage(
@@ -276,7 +343,7 @@ fun PhotoItem(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .background(AppTheme.colors.SurfaceElevated)
                 ) {
                     if (fastThumbnailPainter != null) {
                         Image(
@@ -325,7 +392,8 @@ fun PhotoItem(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(6.dp)
-                    .background(PremiumSurfaceOverlay, CircleShape)
+                    .size(40.dp)
+                    .background(Color.Black.copy(alpha = 0.32f), CircleShape)
                     .border(
                         width = 1.dp,
                         color = Color.White.copy(alpha = if (isLiked) 0.38f else 0.16f),
@@ -335,10 +403,10 @@ fun PhotoItem(
                 Icon(
                     imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     contentDescription = strings.like,
-                    tint = if (isLiked) TaksimError else Color.White
+                    tint = if (isLiked) AppTheme.colors.Error else Color.White,
+                    modifier = Modifier.size(22.dp)
                 )
             }
         }
     }
 }
-

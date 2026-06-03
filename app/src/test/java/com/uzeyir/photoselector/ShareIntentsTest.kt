@@ -44,4 +44,20 @@ class ShareIntentsTest {
         assertEquals("001_IMG_0001.JPG", documentShareCacheFileName("../IMG/0001.JPG", 0))
         assertEquals("012_IMG_0001.CR3", documentShareCacheFileName("IMG_0001.CR3", 11))
     }
+
+    @Test
+    fun sharePreparingStatusReportsOverallAndCurrentFileProgress() {
+        val status = ShareStatus.Preparing(
+            preparedFiles = 1,
+            totalFiles = 3,
+            preparedBytes = 750L,
+            totalBytes = 1_500L,
+            currentFileName = "IMG_0002.CR3",
+            currentFileBytes = 250L,
+            currentFileTotalBytes = 500L
+        )
+
+        assertEquals(0.5f, status.progressFraction)
+        assertEquals(0.5f, status.currentFileProgressFraction)
+    }
 }

@@ -10,8 +10,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Date
 
@@ -33,6 +34,8 @@ class PhotoViewModel(
     var isLoadingMedia by mutableStateOf(false)
         private set
     var exportStatus by mutableStateOf<ExportStatus>(ExportStatus.Idle)
+        private set
+    var shareStatus by mutableStateOf<ShareStatus>(ShareStatus.Idle)
         private set
     var selectionWarningMessage by mutableStateOf<UiMessage?>(null)
         private set
@@ -215,6 +218,21 @@ class PhotoViewModel(
         return true
     }
 
+    fun continueGalleryConfirmationOrWarn(): Boolean {
+        if (likedMediaItems.isEmpty()) {
+            selectionWarningMessage = UiMessage.SelectAtLeastOnePhoto
+            return false
+        }
+        selectionWarningMessage = null
+        if (galleryTab == GalleryTab.All) {
+            galleryTab = GalleryTab.Favorites
+            currentScreen = Screen.Gallery
+            return true
+        }
+        currentScreen = Screen.Confirmation
+        return true
+    }
+
     fun showFavoritesFromViewerOrWarn(): Boolean {
         selectionWarningMessage = null
         galleryTab = GalleryTab.Favorites
@@ -265,6 +283,16 @@ class PhotoViewModel(
 
     fun replaceExportStatus(status: ExportStatus) {
         exportStatus = status
+    }
+
+    fun replaceShareStatus(status: ShareStatus) {
+        shareStatus = status
+    }
+
+    fun replaceSharePreparingStatus(status: ShareStatus.Preparing) {
+        if (shareStatus is ShareStatus.Preparing) {
+            shareStatus = status
+        }
     }
 
     fun setPhotos(newPhotos: List<MediaItemData>) {
@@ -343,6 +371,7 @@ class PhotoViewModel(
         galleryTab = GalleryTab.All
         pendingReturnToFolderConfirmation = false
         exportStatus = ExportStatus.Idle
+        shareStatus = ShareStatus.Idle
         isLoadingMedia = false
         currentScreen = Screen.FolderSelection
     }
@@ -393,8 +422,10 @@ class PhotoViewModel(
                     includeRawFiles = includeRawFiles,
                     matchingRawFiles = ::matchingRawFilesFor,
                     onProgress = { status ->
-                        runBlocking(Dispatchers.Main.immediate) {
-                            exportStatus = status
+                        viewModelScope.launch(Dispatchers.Main.immediate) {
+                            if (exportStatus is ExportStatus.Copying) {
+                                exportStatus = status
+                            }
                         }
                     }
                 ).export(folderName)
@@ -413,6 +444,10 @@ class PhotoViewModel(
         exportStatus = ExportStatus.Idle
     }
 
+    fun clearShareStatus() {
+        shareStatus = ShareStatus.Idle
+    }
+
     fun selectedTransferFiles(includeRawFiles: Boolean = true): List<FolderDocumentData> =
         selectedTransferFiles(
             selectedMedia = likedMediaItems,
@@ -426,6 +461,7 @@ class PhotoViewModel(
 
     fun returnToGalleryAfterExport() {
         exportStatus = ExportStatus.Idle
+        shareStatus = ShareStatus.Idle
         currentScreen = Screen.Gallery
     }
 

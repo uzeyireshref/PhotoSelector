@@ -289,6 +289,45 @@ class PhotoViewModelTest {
     }
 
     @Test
+    fun confirmationFromFavoritesTabNavigatesToFinalConfirmation() {
+        val viewModel = PhotoViewModel()
+        val photos = testPhotos(1)
+        viewModel.setPhotos(photos)
+        viewModel.toggleLike(photos[0].uri)
+        viewModel.navigateTo(Screen.Gallery)
+        viewModel.selectGalleryTab(GalleryTab.Favorites)
+
+        val continued = viewModel.goToConfirmationOrWarn()
+
+        assertEquals(true, continued)
+        assertEquals(Screen.Confirmation, viewModel.currentScreen)
+        assertNull(viewModel.selectionWarningMessage)
+    }
+
+    @Test
+    fun galleryConfirmationFromAllTabSwitchesToFavoritesBeforeFinalConfirmation() {
+        val viewModel = PhotoViewModel()
+        val photos = testPhotos(1)
+        viewModel.setPhotos(photos)
+        viewModel.toggleLike(photos[0].uri)
+        viewModel.navigateTo(Screen.Gallery)
+        viewModel.selectGalleryTab(GalleryTab.All)
+
+        val firstClick = viewModel.continueGalleryConfirmationOrWarn()
+
+        assertEquals(true, firstClick)
+        assertEquals(Screen.Gallery, viewModel.currentScreen)
+        assertEquals(GalleryTab.Favorites, viewModel.galleryTab)
+        assertNull(viewModel.selectionWarningMessage)
+
+        val secondClick = viewModel.continueGalleryConfirmationOrWarn()
+
+        assertEquals(true, secondClick)
+        assertEquals(Screen.Confirmation, viewModel.currentScreen)
+        assertNull(viewModel.selectionWarningMessage)
+    }
+
+    @Test
     fun returnAfterExportCanTargetHomeOrGallery() {
         val viewModel = PhotoViewModel()
         viewModel.setPhotos(testPhotos(1))
@@ -355,5 +394,17 @@ class PhotoViewModelTest {
         viewModel.markLastFolderRestoreAttempted()
 
         assertEquals(false, viewModel.shouldRestoreLastFolderOnStartup())
+    }
+
+    @Test
+    fun lateShareProgressDoesNotReopenClearedShareStatus() {
+        val viewModel = PhotoViewModel()
+        val progress = ShareStatus.Preparing(totalFiles = 1, preparedFiles = 1)
+
+        viewModel.replaceShareStatus(ShareStatus.Preparing(totalFiles = 1))
+        viewModel.clearShareStatus()
+        viewModel.replaceSharePreparingStatus(progress)
+
+        assertEquals(ShareStatus.Idle, viewModel.shareStatus)
     }
 }

@@ -42,6 +42,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.uzeyir.photoselector.ui.theme.PhotoSelectorTheme
+import com.uzeyir.photoselector.ui.theme.AppTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -61,6 +62,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
     val currentScreen = viewModel.currentScreen
     val likedPhotoUriSet = viewModel.likedPhotoUriSet
     val exportStatus = viewModel.exportStatus
+    val shareStatus = viewModel.shareStatus
     val exportSummary = viewModel.exportSummary
     val photos = viewModel.photos
     val isLoadingMedia = viewModel.isLoadingMedia
@@ -216,53 +218,53 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
         }
     }
 
-    if (sdCardOptions.isNotEmpty()) {
-        PremiumDialog(
-            onDismissRequest = { sdCardOptions = emptyList() },
-            title = strings.chooseSdCard,
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    sdCardOptions.forEachIndexed { index, volume ->
-                        TextButton(
-                            onClick = {
-                                sdCardOptions = emptyList()
-                                openSdCardVolume(volume)
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(volume.getDescription(context) ?: "${strings.chooseSdCard} ${index + 1}")
+    PhotoSelectorTheme(dynamicColor = false, themeOption = adminSettings.theme) {
+        if (sdCardOptions.isNotEmpty()) {
+            AppDialog(
+                onDismissRequest = { sdCardOptions = emptyList() },
+                title = strings.chooseSdCard,
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        sdCardOptions.forEachIndexed { index, volume ->
+                            TextButton(
+                                onClick = {
+                                    sdCardOptions = emptyList()
+                                    openSdCardVolume(volume)
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(volume.getDescription(context) ?: "${strings.chooseSdCard} ${index + 1}")
+                            }
                         }
                     }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    AppOutlinedButton(onClick = { sdCardOptions = emptyList() }) {
+                        Text(strings.back, style = AppTheme.typography.ButtonText)
+                    }
                 }
-            },
-            confirmButton = {},
-            dismissButton = {
-                PremiumOutlinedButton(onClick = { sdCardOptions = emptyList() }) {
-                    Text(strings.back)
-                }
-            }
-        )
-    }
+            )
+        }
 
-    if (pendingReturnToFolderConfirmation) {
-        PremiumDialog(
-            onDismissRequest = { viewModel.cancelReturnToFolderSelection() },
-            title = strings.returnHomeWarningTitle,
-            text = { Text(strings.returnHomeWarningMessage) },
-            confirmButton = {
-                PremiumPrimaryButton(onClick = { viewModel.confirmReturnToFolderSelection() }) {
-                    Text(strings.returnHome)
+        if (pendingReturnToFolderConfirmation) {
+            AppDialog(
+                onDismissRequest = { viewModel.cancelReturnToFolderSelection() },
+                title = strings.returnHomeWarningTitle,
+                text = { Text(strings.returnHomeWarningMessage, style = AppTheme.typography.Body, color = AppTheme.colors.TextPrimary) },
+                confirmButton = {
+                    AppPrimaryButton(onClick = { viewModel.confirmReturnToFolderSelection() }) {
+                        Text(strings.returnHome, style = AppTheme.typography.ButtonText)
+                    }
+                },
+                dismissButton = {
+                    AppOutlinedButton(onClick = { viewModel.cancelReturnToFolderSelection() }) {
+                        Text(strings.stayHere, style = AppTheme.typography.ButtonText)
+                    }
                 }
-            },
-            dismissButton = {
-                PremiumOutlinedButton(onClick = { viewModel.cancelReturnToFolderSelection() }) {
-                    Text(strings.stayHere)
-                }
-            }
-        )
-    }
+            )
+        }
 
-    PhotoSelectorTheme(dynamicColor = false, themeOption = adminSettings.theme) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
@@ -272,21 +274,24 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
                 if (currentScreen == Screen.Gallery) {
-                    BottomPriceBar(
-                        photoCount = viewModel.selectedPhotoCount,
-                        videoCount = viewModel.selectedVideoCount,
-                        photoOriginalPrice = viewModel.photoBasePrice,
-                        photoPayablePrice = viewModel.photoDisplayPrice,
-                        videoOriginalPrice = viewModel.videoBasePrice,
-                        videoPayablePrice = viewModel.videoDisplayPrice,
-                        totalPayablePrice = viewModel.totalDisplayPrice,
-                        onReviewClick = {
-                            viewModel.chooseIncludeRawFiles(true)
-                            viewModel.goToConfirmationOrWarn()
-                        },
-                        buttonText = strings.confirmSelection,
-                        strings = strings
-                    )
+                    Column {
+                        AppDivider(modifier = Modifier.fillMaxWidth())
+                        BottomPriceBar(
+                            photoCount = viewModel.selectedPhotoCount,
+                            videoCount = viewModel.selectedVideoCount,
+                            photoOriginalPrice = viewModel.photoBasePrice,
+                            photoPayablePrice = viewModel.photoDisplayPrice,
+                            videoOriginalPrice = viewModel.videoBasePrice,
+                            videoPayablePrice = viewModel.videoDisplayPrice,
+                            totalPayablePrice = viewModel.totalDisplayPrice,
+                            onReviewClick = {
+                                viewModel.chooseIncludeRawFiles(true)
+                                viewModel.continueGalleryConfirmationOrWarn()
+                            },
+                            buttonText = strings.confirmSelection,
+                            strings = strings
+                        )
+                    }
                 }
             }
             ) { innerPadding ->
@@ -360,6 +365,7 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                 Screen.Confirmation -> ConfirmationScreen(
                     summary = exportSummary,
                     exportStatus = exportStatus,
+                    shareStatus = shareStatus,
                     includeRawFiles = includeRawFiles,
                     photoOriginalPrice = viewModel.photoBasePrice,
                     photoPayablePrice = viewModel.photoDisplayPrice,
@@ -375,9 +381,24 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                         if (files.isNotEmpty()) {
                             coroutineScope.launch {
                                 val shared = cancellationSafeRunCatching {
-                                    val documentFiles = prepareWhatsAppDocumentShareFiles(context, files)
+                                    val totalBytes = files
+                                        .map { it.sizeBytes }
+                                        .takeIf { sizes -> sizes.all { it != null } }
+                                        ?.sumOf { it ?: 0L }
+                                    viewModel.replaceShareStatus(
+                                        ShareStatus.Preparing(
+                                            totalFiles = files.size,
+                                            totalBytes = totalBytes
+                                        )
+                                    )
+                                    val documentFiles = prepareWhatsAppDocumentShareFiles(context, files) { status ->
+                                        coroutineScope.launch {
+                                            viewModel.replaceSharePreparingStatus(status)
+                                        }
+                                    }
                                     shareDocumentsWithWhatsAppOrFallback(context, documentFiles)
                                 }.getOrDefault(false)
+                                viewModel.clearShareStatus()
                                 if (!shared) {
                                     snackbarHostState.showSnackbar(strings.whatsAppShareFailed)
                                 }
