@@ -31,4 +31,23 @@ class StorageIntentTest {
             sdCardDcimInitialUriStringFromRootUri("content://other.provider/root/1234-5678")
         )
     }
+
+    @Test
+    fun sdCardInitialUriSupportsSavedRelativePath() {
+        assertEquals(
+            "content://com.android.externalstorage.documents/document/1234-5678%3ADCIM%2FSECILENLER",
+            sdCardInitialUriStringFromRootUri(
+                rootUri = "content://com.android.externalstorage.documents/root/1234-5678",
+                relativePath = "DCIM/SECILENLER"
+            )
+        )
+    }
+
+    @Test
+    fun sdCardVolumeIdIsReadFromStorageVolumeRootUri() {
+        assertEquals(
+            "1234-5678",
+            sdCardVolumeIdFromRootUri("content://com.android.externalstorage.documents/root/1234-5678")
+        )
+    }
 }

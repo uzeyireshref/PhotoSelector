@@ -45,6 +45,8 @@ import com.uzeyir.photoselector.ui.theme.PhotoSelectorTheme
 import com.uzeyir.photoselector.ui.theme.AppTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -184,7 +186,11 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
             }.isSuccess
             if (!permissionGranted) return
 
-            viewModel.selectPreferredSdCardFolder(selectedUri.toString())
+            val saved = viewModel.selectPreferredSdCardFolder(selectedUri.toString())
+            if (!saved) {
+                viewModel.warn(UiMessage.FolderLoadFailed)
+                return
+            }
             adminSettingsStore.save(viewModel.adminSettings)
         }
     }
@@ -228,20 +234,22 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
             viewModel.warn(UiMessage.SdCardPickerUnsupported)
             return
         }
-        openDocumentTree(volume.createOpenDocumentTreeIntent().withSdCardDcimInitialUri())
-    }
-
-    fun openSdCardPicker() {
+        val intent = volume.createOpenDocumentTreeIntent()
+        val rootUri = intent.getParcelableExtraCompat(DocumentsContract.EXTRA_INITIAL_URI)
+        val volumeId = rootUri?.toString()?.let(::sdCardVolumeIdFromRootUri)
         val (persistedReadUris, persistedWriteUris) = persistedPermissionUriSets()
-        val preferredFolder = resolvePreferredSdCardFolder(
-            settings = viewModel.adminSettings,
-            persistedReadUris = persistedReadUris,
-            persistedWriteUris = persistedWriteUris
-        )
-        if (preferredFolder != null) {
+        val authorizedFolder = volumeId?.let {
+            resolveAuthorizedSdCardFolder(
+                settings = viewModel.adminSettings,
+                volumeId = it,
+                persistedReadUris = persistedReadUris,
+                persistedWriteUris = persistedWriteUris
+            )
+        }
+        if (authorizedFolder != null) {
             coroutineScope.launch {
                 cancellationSafeRunCatching {
-                    viewModel.loadMediaFromFolder(Uri.parse(preferredFolder), context.contentResolver)
+                    viewModel.loadMediaFromFolder(Uri.parse(authorizedFolder.folderUri), context.contentResolver)
                     viewModel.navigateTo(Screen.Gallery)
                 }.onFailure {
                     viewModel.reset()
@@ -251,6 +259,11 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
             return
         }
 
+        val savedFolder = volumeId?.let { authorizedSdCardFolderForVolume(viewModel.adminSettings, it) }
+        openDocumentTree(intent.withSdCardInitialUri(savedFolder?.relativePath ?: "DCIM"))
+    }
+
+    fun openSdCardPicker() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             viewModel.warn(UiMessage.SdCardPickerUnsupported)
             return
@@ -510,10 +523,10 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
     }
 }
 
-private fun Intent.withSdCardDcimInitialUri(): Intent {
+private fun Intent.withSdCardInitialUri(relativePath: String): Intent {
     val rootUri = getParcelableExtraCompat(DocumentsContract.EXTRA_INITIAL_URI) ?: return this
-    val dcimUri = sdCardDcimInitialUriStringFromRootUri(rootUri.toString()) ?: return this
-    return putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.parse(dcimUri))
+    val initialUri = sdCardInitialUriStringFromRootUri(rootUri.toString(), relativePath) ?: return this
+    return putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.parse(initialUri))
 }
 
 @Suppress("DEPRECATION")
@@ -525,6 +538,10 @@ private fun Intent.getParcelableExtraCompat(name: String): Uri? =
     }
 
 internal fun sdCardDcimInitialUriStringFromRootUri(rootUri: String): String? {
+    return sdCardInitialUriStringFromRootUri(rootUri, "DCIM")
+}
+
+internal fun sdCardVolumeIdFromRootUri(rootUri: String): String? {
     val rootPrefix = "content://com.android.externalstorage.documents/root/"
     if (!rootUri.startsWith(rootPrefix)) return null
     val volumeId = rootUri
@@ -532,8 +549,16 @@ internal fun sdCardDcimInitialUriStringFromRootUri(rootUri: String): String? {
         .substringBefore('/')
         .substringBefore('?')
         .substringBefore('#')
-    if (volumeId.isBlank()) return null
-    return "content://com.android.externalstorage.documents/document/${volumeId}%3ADCIM"
+    return volumeId.takeIf { it.isNotBlank() }
+}
+
+internal fun sdCardInitialUriStringFromRootUri(rootUri: String, relativePath: String): String? {
+    val volumeId = sdCardVolumeIdFromRootUri(rootUri) ?: return null
+    val normalizedPath = relativePath.trim('/')
+    val documentId = if (normalizedPath.isBlank()) "$volumeId:" else "$volumeId:$normalizedPath"
+    val encodedDocumentId = URLEncoder.encode(documentId, StandardCharsets.UTF_8.name())
+        .replace("+", "%20")
+    return "content://com.android.externalstorage.documents/document/$encodedDocumentId"
 }
 
 private fun shareDocumentsWithWhatsAppOrFallback(

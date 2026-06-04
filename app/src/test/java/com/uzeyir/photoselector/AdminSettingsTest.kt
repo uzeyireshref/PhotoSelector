@@ -17,6 +17,7 @@ class AdminSettingsTest {
         assertEquals(10, settings.pricing.priceLimitCount)
         assertEquals(AppThemeOption.SignatureGold, settings.theme)
         assertEquals(null, settings.preferredSdCardFolderUri)
+        assertEquals(emptyList<AuthorizedSdCardFolder>(), settings.authorizedSdCardFolders)
     }
 
     @Test
@@ -53,7 +54,14 @@ class AdminSettingsTest {
             adminPassword = "9876",
             pricing = AdminSettings.Default.pricing.copy(photoUnitPrice = 500),
             theme = AppThemeOption.GraphiteCopper,
-            preferredSdCardFolderUri = "content://tree/custom-folder"
+            preferredSdCardFolderUri = "content://com.android.externalstorage.documents/tree/1234-5678%3ADCIM",
+            authorizedSdCardFolders = listOf(
+                AuthorizedSdCardFolder(
+                    volumeId = "1234-5678",
+                    folderUri = "content://com.android.externalstorage.documents/tree/1234-5678%3ADCIM",
+                    relativePath = "DCIM"
+                )
+            )
         )
 
         store.save(updated)
@@ -89,6 +97,82 @@ class AdminSettingsTest {
                 settings = AdminSettings.Default,
                 persistedReadUris = setOf("content://tree/custom-folder"),
                 persistedWriteUris = setOf("content://tree/custom-folder")
+            )
+        )
+    }
+
+    @Test
+    fun treeUriIsParsedIntoAuthorizedSdCardFolder() {
+        assertEquals(
+            AuthorizedSdCardFolder(
+                volumeId = "1234-5678",
+                folderUri = "content://com.android.externalstorage.documents/tree/1234-5678%3ADCIM%2FSECILENLER",
+                relativePath = "DCIM/SECILENLER"
+            ),
+            authorizedSdCardFolderFromTreeUri(
+                "content://com.android.externalstorage.documents/tree/1234-5678%3ADCIM%2FSECILENLER"
+            )
+        )
+    }
+
+    @Test
+    fun authorizedSdCardFolderUpsertReplacesOnlySameVolume() {
+        val first = AuthorizedSdCardFolder(
+            volumeId = "1111-2222",
+            folderUri = "content://tree/1111-2222%3ADCIM",
+            relativePath = "DCIM"
+        )
+        val second = AuthorizedSdCardFolder(
+            volumeId = "3333-4444",
+            folderUri = "content://tree/3333-4444%3ADCIM",
+            relativePath = "DCIM"
+        )
+        val replacement = AuthorizedSdCardFolder(
+            volumeId = "1111-2222",
+            folderUri = "content://tree/1111-2222%3ADCIM%2FSELECTED",
+            relativePath = "DCIM/SELECTED"
+        )
+
+        assertEquals(
+            listOf(replacement, second),
+            upsertAuthorizedSdCardFolder(listOf(first, second), replacement)
+        )
+    }
+
+    @Test
+    fun authorizedSdCardFolderResolvesByVolumeOnlyWithReadAndWritePermissions() {
+        val folder = AuthorizedSdCardFolder(
+            volumeId = "1234-5678",
+            folderUri = "content://tree/1234-5678%3ADCIM",
+            relativePath = "DCIM"
+        )
+        val settings = AdminSettings.Default.copy(authorizedSdCardFolders = listOf(folder))
+
+        assertEquals(
+            folder,
+            resolveAuthorizedSdCardFolder(
+                settings = settings,
+                volumeId = "1234-5678",
+                persistedReadUris = setOf(folder.folderUri),
+                persistedWriteUris = setOf(folder.folderUri)
+            )
+        )
+        assertEquals(
+            null,
+            resolveAuthorizedSdCardFolder(
+                settings = settings,
+                volumeId = "9999-0000",
+                persistedReadUris = setOf(folder.folderUri),
+                persistedWriteUris = setOf(folder.folderUri)
+            )
+        )
+        assertEquals(
+            null,
+            resolveAuthorizedSdCardFolder(
+                settings = settings,
+                volumeId = "1234-5678",
+                persistedReadUris = setOf(folder.folderUri),
+                persistedWriteUris = emptySet()
             )
         )
     }

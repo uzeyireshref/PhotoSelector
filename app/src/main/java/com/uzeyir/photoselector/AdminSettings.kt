@@ -1,6 +1,10 @@
 package com.uzeyir.photoselector
 
 import android.content.SharedPreferences
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 
 enum class AppThemeOption {
     SignatureGold,
@@ -13,7 +17,8 @@ data class AdminSettings(
     val adminPassword: String = DEFAULT_ADMIN_PASSWORD,
     val pricing: PricingSettings = PricingSettings.Default,
     val theme: AppThemeOption = AppThemeOption.SignatureGold,
-    val preferredSdCardFolderUri: String? = null
+    val preferredSdCardFolderUri: String? = null,
+    val authorizedSdCardFolders: List<AuthorizedSdCardFolder> = emptyList()
 ) {
     fun canChangePassword(currentPassword: String, newPassword: String, repeatedPassword: String): Boolean =
         currentPassword == adminPassword &&
@@ -50,12 +55,19 @@ class SharedPreferencesAdminSettingsStore(
         val theme = preferences.getString(KEY_THEME, null)
             ?.let { saved -> AppThemeOption.entries.firstOrNull { it.name == saved } }
             ?: AppThemeOption.SignatureGold
+        val preferredSdCardFolderUri = preferences.getString(KEY_PREFERRED_SD_CARD_FOLDER_URI, null)
+            ?.takeIf { it.isNotBlank() }
+        val storedAuthorizedFolders = parseAuthorizedSdCardFolders(
+            preferences.getString(KEY_AUTHORIZED_SD_CARD_FOLDERS, null)
+        )
+        val authorizedFolders = storedAuthorizedFolders.takeIf { it.isNotEmpty() }
+            ?: listOfNotNull(authorizedSdCardFolderFromTreeUri(preferredSdCardFolderUri))
         return AdminSettings(
             adminPassword = password,
             pricing = pricing,
             theme = theme,
-            preferredSdCardFolderUri = preferences.getString(KEY_PREFERRED_SD_CARD_FOLDER_URI, null)
-                ?.takeIf { it.isNotBlank() }
+            preferredSdCardFolderUri = preferredSdCardFolderUri,
+            authorizedSdCardFolders = authorizedFolders
         )
     }
 
@@ -68,6 +80,7 @@ class SharedPreferencesAdminSettingsStore(
             .putString(KEY_DISCOUNT_TIERS, serializeDiscountTiers(settings.pricing.discountTiers))
             .putString(KEY_THEME, settings.theme.name)
             .putString(KEY_PREFERRED_SD_CARD_FOLDER_URI, settings.preferredSdCardFolderUri)
+            .putString(KEY_AUTHORIZED_SD_CARD_FOLDERS, serializeAuthorizedSdCardFolders(settings.authorizedSdCardFolders))
             .apply()
     }
 
@@ -79,8 +92,15 @@ class SharedPreferencesAdminSettingsStore(
         private const val KEY_DISCOUNT_TIERS = "discount_tiers"
         private const val KEY_THEME = "app_theme"
         private const val KEY_PREFERRED_SD_CARD_FOLDER_URI = "preferred_sd_card_folder_uri"
+        private const val KEY_AUTHORIZED_SD_CARD_FOLDERS = "authorized_sd_card_folders"
     }
 }
+
+data class AuthorizedSdCardFolder(
+    val volumeId: String,
+    val folderUri: String,
+    val relativePath: String
+)
 
 class InMemoryAdminSettingsStore(
     private var settings: AdminSettings = AdminSettings.Default
@@ -119,6 +139,33 @@ fun resolvePreferredSdCardFolder(
     return preferredSdCardFolderResolution(settings, persistedReadUris, persistedWriteUris).folderUri
 }
 
+fun resolveAuthorizedSdCardFolder(
+    settings: AdminSettings,
+    volumeId: String,
+    persistedReadUris: Set<String>,
+    persistedWriteUris: Set<String>
+): AuthorizedSdCardFolder? =
+    settings.authorizedSdCardFolders.firstOrNull { folder ->
+        folder.volumeId == volumeId &&
+            folder.folderUri in persistedReadUris &&
+            folder.folderUri in persistedWriteUris
+    }
+
+fun authorizedSdCardFolderForVolume(
+    settings: AdminSettings,
+    volumeId: String
+): AuthorizedSdCardFolder? =
+    settings.authorizedSdCardFolders.firstOrNull { it.volumeId == volumeId }
+
+fun upsertAuthorizedSdCardFolder(
+    folders: List<AuthorizedSdCardFolder>,
+    folder: AuthorizedSdCardFolder
+): List<AuthorizedSdCardFolder> =
+    folders
+        .filterNot { it.volumeId == folder.volumeId }
+        .plus(folder)
+        .sortedBy { it.volumeId }
+
 data class PreferredSdCardFolderResolution(
     val folderUri: String?,
     val hasSavedPreference: Boolean
@@ -135,4 +182,59 @@ fun preferredSdCardFolderResolution(
         folderUri = resolvedFolderUri,
         hasSavedPreference = savedFolderUri != null
     )
+}
+
+fun authorizedSdCardFolderFromTreeUri(treeUriString: String?): AuthorizedSdCardFolder? {
+    if (treeUriString.isNullOrBlank()) return null
+    val encodedTreeDocumentId = treeUriString
+        .substringAfter("/tree/", missingDelimiterValue = "")
+        .substringBefore('/')
+        .substringBefore('?')
+        .substringBefore('#')
+        .takeIf { it.isNotBlank() }
+        ?: return null
+    val documentId = runCatching {
+        URLDecoder.decode(encodedTreeDocumentId, StandardCharsets.UTF_8.name())
+    }.getOrNull() ?: return null
+    val volumeId = documentId.substringBefore(':').takeIf { it.isNotBlank() } ?: return null
+    val relativePath = documentId.substringAfter(':', missingDelimiterValue = "")
+    return AuthorizedSdCardFolder(
+        volumeId = volumeId,
+        folderUri = treeUriString,
+        relativePath = relativePath
+    )
+}
+
+private fun serializeAuthorizedSdCardFolders(folders: List<AuthorizedSdCardFolder>): String =
+    JSONArray().apply {
+        folders.forEach { folder ->
+            put(
+                JSONObject()
+                    .put("volumeId", folder.volumeId)
+                    .put("folderUri", folder.folderUri)
+                    .put("relativePath", folder.relativePath)
+            )
+        }
+    }.toString()
+
+private fun parseAuthorizedSdCardFolders(saved: String?): List<AuthorizedSdCardFolder> {
+    if (saved.isNullOrBlank()) return emptyList()
+    return runCatching {
+        val json = JSONArray(saved)
+        buildList {
+            for (index in 0 until json.length()) {
+                val item = json.optJSONObject(index) ?: continue
+                val volumeId = item.optString("volumeId").takeIf { it.isNotBlank() } ?: continue
+                val folderUri = item.optString("folderUri").takeIf { it.isNotBlank() } ?: continue
+                val relativePath = item.optString("relativePath")
+                add(
+                    AuthorizedSdCardFolder(
+                        volumeId = volumeId,
+                        folderUri = folderUri,
+                        relativePath = relativePath
+                    )
+                )
+            }
+        }
+    }.getOrDefault(emptyList())
 }

@@ -216,12 +216,23 @@ class PhotoViewModel(
         adminSettings = adminSettings.copy(theme = theme)
     }
 
-    fun selectPreferredSdCardFolder(folderUri: String) {
-        adminSettings = adminSettings.copy(preferredSdCardFolderUri = folderUri.takeIf { it.isNotBlank() })
+    fun selectPreferredSdCardFolder(folderUri: String): Boolean {
+        val authorizedFolder = authorizedSdCardFolderFromTreeUri(folderUri) ?: return false
+        adminSettings = adminSettings.copy(
+            preferredSdCardFolderUri = folderUri.takeIf { it.isNotBlank() },
+            authorizedSdCardFolders = upsertAuthorizedSdCardFolder(
+                folders = adminSettings.authorizedSdCardFolders,
+                folder = authorizedFolder
+            )
+        )
+        return true
     }
 
     fun clearPreferredSdCardFolder() {
-        adminSettings = adminSettings.copy(preferredSdCardFolderUri = null)
+        adminSettings = adminSettings.copy(
+            preferredSdCardFolderUri = null,
+            authorizedSdCardFolders = emptyList()
+        )
     }
 
     fun goToConfirmationOrWarn(): Boolean {

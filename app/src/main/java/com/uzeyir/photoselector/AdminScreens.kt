@@ -220,7 +220,7 @@ fun AdminPanelScreen(
                             onThemeSelected = onThemeSelected
                         )
                         AdminPanelSection.SdCardFolder -> SdCardFolderAdminSection(
-                            selectedFolderUri = settings.preferredSdCardFolderUri,
+                            authorizedFolders = settings.authorizedSdCardFolders,
                             strings = strings,
                             onChoosePreferredSdCardFolder = onChoosePreferredSdCardFolder,
                             onClearPreferredSdCardFolder = onClearPreferredSdCardFolder
@@ -432,12 +432,12 @@ private fun ThemesAdminSection(
 
 @Composable
 private fun SdCardFolderAdminSection(
-    selectedFolderUri: String?,
+    authorizedFolders: List<AuthorizedSdCardFolder>,
     strings: LocalizedStrings,
     onChoosePreferredSdCardFolder: () -> Unit,
     onClearPreferredSdCardFolder: () -> Unit
 ) {
-    var message by remember(selectedFolderUri) { mutableStateOf<String?>(null) }
+    var message by remember(authorizedFolders) { mutableStateOf<String?>(null) }
 
     AdminSectionColumn(title = strings.adminPreferredSdCardFolder, icon = Icons.Default.SdStorage) {
         Text(
@@ -455,12 +455,28 @@ private fun SdCardFolderAdminSection(
                 contentDescription = null,
                 tint = AppTheme.colors.Accent
             )
-            Text(
-                text = selectedFolderUri ?: strings.adminNoSdCardFolderSelected,
-                style = AppTheme.typography.Body,
-                color = AppTheme.colors.TextPrimary,
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                if (authorizedFolders.isEmpty()) {
+                    Text(
+                        text = strings.adminNoSdCardFolderSelected,
+                        style = AppTheme.typography.Body,
+                        color = AppTheme.colors.TextPrimary
+                    )
+                } else {
+                    authorizedFolders.forEach { folder ->
+                        Text(
+                            text = "${folder.volumeId}: ${folder.relativePath.ifBlank { "/" }}",
+                            style = AppTheme.typography.Body,
+                            color = AppTheme.colors.TextPrimary
+                        )
+                        Text(
+                            text = folder.folderUri,
+                            style = AppTheme.typography.Caption,
+                            color = AppTheme.colors.TextSecondary
+                        )
+                    }
+                }
+            }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             AppPrimaryButton(
