@@ -133,6 +133,12 @@ class PhotoViewModel(
         get() = selectionPricing.totalDisplayPrice
 
     fun toggleLike(uri: Uri) {
+        val selectedUriBeforeToggle = selectedPhotoUri
+        val removedFavoriteIndex = if (likedPhotoUriMembership.containsKey(uri)) {
+            likedMediaItems.indexOfFirst { it.uri == uri }
+        } else {
+            -1
+        }
         if (likedPhotoUriMembership.containsKey(uri)) {
             likedPhotos.remove(uri)
             likedPhotoUriMembership.remove(uri)
@@ -141,6 +147,11 @@ class PhotoViewModel(
             likedPhotoUriMembership[uri] = Unit
         }
         rebuildLikedMediaCache()
+        keepFavoriteViewerSelectionInRange(
+            toggledUri = uri,
+            selectedUriBeforeToggle = selectedUriBeforeToggle,
+            removedFavoriteIndex = removedFavoriteIndex
+        )
     }
 
     fun navigateTo(screen: Screen) {
@@ -155,10 +166,7 @@ class PhotoViewModel(
         adminPanelSection = section
     }
 
-    fun shouldRestoreLastFolderOnStartup(): Boolean =
-        !lastFolderRestoreAttempted &&
-            currentScreen == Screen.FolderSelection &&
-            !hasActiveFolderSession()
+    fun shouldRestoreLastFolderOnStartup(): Boolean = false
 
     fun markLastFolderRestoreAttempted() {
         lastFolderRestoreAttempted = true
@@ -206,6 +214,14 @@ class PhotoViewModel(
 
     fun selectTheme(theme: AppThemeOption) {
         adminSettings = adminSettings.copy(theme = theme)
+    }
+
+    fun selectPreferredSdCardFolder(folderUri: String) {
+        adminSettings = adminSettings.copy(preferredSdCardFolderUri = folderUri.takeIf { it.isNotBlank() })
+    }
+
+    fun clearPreferredSdCardFolder() {
+        adminSettings = adminSettings.copy(preferredSdCardFolderUri = null)
     }
 
     fun goToConfirmationOrWarn(): Boolean {
@@ -349,15 +365,15 @@ class PhotoViewModel(
     }
 
     fun showNextPhoto() {
-        if (selectedPhotoIndex < viewerPhotos.lastIndex) {
-            selectedPhotoIndex += 1
-        }
+        val photoCount = viewerPhotos.size
+        if (photoCount <= 0 || selectedPhotoIndex !in 0 until photoCount) return
+        selectedPhotoIndex = (selectedPhotoIndex + 1) % photoCount
     }
 
     fun showPreviousPhoto() {
-        if (selectedPhotoIndex > 0) {
-            selectedPhotoIndex -= 1
-        }
+        val photoCount = viewerPhotos.size
+        if (photoCount <= 0 || selectedPhotoIndex !in 0 until photoCount) return
+        selectedPhotoIndex = (selectedPhotoIndex - 1 + photoCount) % photoCount
     }
 
     fun reset() {
@@ -381,6 +397,31 @@ class PhotoViewModel(
             photos.isNotEmpty() ||
             folderDocuments.isNotEmpty() ||
             likedPhotoUriMembership.isNotEmpty()
+
+    private fun keepFavoriteViewerSelectionInRange(
+        toggledUri: Uri,
+        selectedUriBeforeToggle: Uri?,
+        removedFavoriteIndex: Int
+    ) {
+        if (viewerSource != PhotoViewerSource.Favorites || currentScreen != Screen.PhotoDetail) return
+        if (likedMediaItems.isEmpty()) {
+            selectedPhotoIndex = -1
+            galleryTab = GalleryTab.Favorites
+            currentScreen = Screen.Gallery
+            return
+        }
+        if (selectedUriBeforeToggle != toggledUri) {
+            selectedPhotoIndex = likedMediaItems.indexOfFirst { it.uri == selectedUriBeforeToggle }
+                .takeIf { it >= 0 }
+                ?: selectedPhotoIndex.coerceIn(likedMediaItems.indices)
+            return
+        }
+        if (removedFavoriteIndex >= 0) {
+            selectedPhotoIndex = removedFavoriteIndex.coerceAtMost(likedMediaItems.lastIndex)
+        } else if (selectedPhotoIndex !in likedMediaItems.indices) {
+            selectedPhotoIndex = selectedPhotoIndex.coerceIn(likedMediaItems.indices)
+        }
+    }
 
     fun matchingRawFilesFor(photo: MediaItemData): List<FolderDocumentData> {
         return matchingRawFilesFor(rawDocumentsByBaseName, photo)

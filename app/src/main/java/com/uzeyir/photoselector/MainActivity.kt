@@ -127,8 +127,9 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
 
     LaunchedEffect(Unit) {
         viewModel.replaceAdminSettings(adminSettingsStore.load())
-        if (!viewModel.shouldRestoreLastFolderOnStartup()) return@LaunchedEffect
-        viewModel.markLastFolderRestoreAttempted()
+    }
+
+    fun persistedPermissionUriSets(): Pair<Set<String>, Set<String>> {
         val persistedPermissions = context.contentResolver.persistedUriPermissions
         val persistedReadUris = persistedPermissions
             .filter { it.isReadPermission }
@@ -138,19 +139,11 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
             .filter { it.isWritePermission }
             .map { it.uri.toString() }
             .toSet()
-        lastFolderStore.resolveAvailableFolder(
-            persistedReadUris = persistedReadUris,
-            persistedWriteUris = persistedWriteUris
-        )?.let { savedFolder ->
-            cancellationSafeRunCatching {
-                viewModel.loadMediaFromFolder(Uri.parse(savedFolder), context.contentResolver)
-                viewModel.navigateTo(Screen.Gallery)
-            }.onFailure {
-                lastFolderStore.clear()
-                viewModel.reset()
-                viewModel.warn(UiMessage.FolderLoadFailed)
-            }
-        }
+        return persistedReadUris to persistedWriteUris
+    }
+
+    fun warnPreferredSdCardFolderLoadFailed() {
+        viewModel.warn(UiMessage.FolderLoadFailed)
     }
 
     fun handleSelectedFolder(uri: Uri?) {
@@ -179,14 +172,48 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
         }
     }
 
+    fun handleSelectedPreferredSdCardFolder(uri: Uri?) {
+        uri?.let { selectedUri ->
+            val permissionGranted = cancellationSafeRunCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    selectedUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            }.onFailure {
+                viewModel.warn(UiMessage.FolderLoadFailed)
+            }.isSuccess
+            if (!permissionGranted) return
+
+            viewModel.selectPreferredSdCardFolder(selectedUri.toString())
+            adminSettingsStore.save(viewModel.adminSettings)
+        }
+    }
+
     val folderLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result: ActivityResult ->
         handleSelectedFolder(result.data?.data)
     }
 
+    val preferredSdCardFolderLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result: ActivityResult ->
+        handleSelectedPreferredSdCardFolder(result.data?.data)
+    }
+
     fun openDocumentTree(intent: Intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)) {
         folderLauncher.launch(
+            intent.addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+            )
+        )
+    }
+
+    fun openPreferredSdCardFolderTree(intent: Intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)) {
+        preferredSdCardFolderLauncher.launch(
             intent.addFlags(
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or
                     Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
@@ -205,6 +232,25 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
     }
 
     fun openSdCardPicker() {
+        val (persistedReadUris, persistedWriteUris) = persistedPermissionUriSets()
+        val preferredFolder = resolvePreferredSdCardFolder(
+            settings = viewModel.adminSettings,
+            persistedReadUris = persistedReadUris,
+            persistedWriteUris = persistedWriteUris
+        )
+        if (preferredFolder != null) {
+            coroutineScope.launch {
+                cancellationSafeRunCatching {
+                    viewModel.loadMediaFromFolder(Uri.parse(preferredFolder), context.contentResolver)
+                    viewModel.navigateTo(Screen.Gallery)
+                }.onFailure {
+                    viewModel.reset()
+                    warnPreferredSdCardFolderLoadFailed()
+                }
+            }
+            return
+        }
+
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             viewModel.warn(UiMessage.SdCardPickerUnsupported)
             return
@@ -449,6 +495,11 @@ fun PhotoSelectorApp(viewModel: PhotoViewModel = viewModel()) {
                     },
                     onThemeSelected = { theme ->
                         viewModel.selectTheme(theme)
+                        adminSettingsStore.save(viewModel.adminSettings)
+                    },
+                    onChoosePreferredSdCardFolder = { openPreferredSdCardFolderTree() },
+                    onClearPreferredSdCardFolder = {
+                        viewModel.clearPreferredSdCardFolder()
                         adminSettingsStore.save(viewModel.adminSettings)
                     }
                 )

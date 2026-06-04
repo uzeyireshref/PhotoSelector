@@ -61,13 +61,17 @@ fun PhotoDetailScreen(
     }
 
     val pagerState = rememberPagerState(
-        initialPage = selectedPhotoIndex,
-        pageCount = { photos.size }
+        initialPage = loopingPhotoPagerInitialPage(
+            itemCount = photos.size,
+            selectedIndex = selectedPhotoIndex
+        ),
+        pageCount = { LoopingPhotoPagerPageCount }
     )
     val coroutineScope = rememberCoroutineScope()
     var controlsVisible by remember { mutableStateOf(true) }
     val videoController = rememberVideoPlaybackController(photos)
-    val currentPhoto = photos[pagerState.currentPage]
+    val currentPhotoIndex = wrappedPhotoIndex(pagerState.currentPage, photos.size)
+    val currentPhoto = photos[currentPhotoIndex]
     val isLiked = likedPhotoUris.contains(currentPhoto.uri)
     val fullscreenVideo = videoController.fullscreenMedia
     val sharedVideoPlayer = videoController.player
@@ -85,14 +89,20 @@ fun PhotoDetailScreen(
     }
 
     LaunchedEffect(selectedPhotoIndex, photos.size) {
-        if (selectedPhotoIndex in photos.indices && pagerState.currentPage != selectedPhotoIndex) {
-            pagerState.scrollToPage(selectedPhotoIndex)
+        if (selectedPhotoIndex in photos.indices && currentPhotoIndex != selectedPhotoIndex) {
+            pagerState.scrollToPage(
+                nearestLoopingPhotoPage(
+                    currentPage = pagerState.currentPage,
+                    targetIndex = selectedPhotoIndex,
+                    itemCount = photos.size
+                )
+            )
         }
     }
 
     LaunchedEffect(pagerState.currentPage) {
-        if (pagerState.currentPage != selectedPhotoIndex) {
-            onPhotoSelected(pagerState.currentPage)
+        if (currentPhotoIndex != selectedPhotoIndex) {
+            onPhotoSelected(currentPhotoIndex)
         }
     }
 
@@ -108,9 +118,10 @@ fun PhotoDetailScreen(
     ) {
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            userScrollEnabled = photos.size > 1
         ) { page ->
-            val media = photos[page]
+            val media = photos[wrappedPhotoIndex(page, photos.size)]
             val rotationDegrees = if (media.mediaType == MediaType.Photo) rotationFor(media.uri) else 0
             if (media.mediaType == MediaType.Video) {
                 VideoPoster(
@@ -133,7 +144,7 @@ fun PhotoDetailScreen(
         }
 
         if (controlsVisible) {
-            if (pagerState.currentPage > 0) {
+            if (photos.size > 1) {
                 FilledIconButton(
                     onClick = {
                         showControls()
@@ -151,7 +162,7 @@ fun PhotoDetailScreen(
                 }
             }
 
-            if (pagerState.currentPage < photos.lastIndex) {
+            if (photos.size > 1) {
                 FilledIconButton(
                     onClick = {
                         showControls()
@@ -171,7 +182,7 @@ fun PhotoDetailScreen(
 
             FullscreenTopBar(
                 photo = currentPhoto,
-                currentIndex = pagerState.currentPage,
+                currentIndex = currentPhotoIndex,
                 totalCount = photos.size,
                 strings = strings,
                 onRotate = if (currentPhoto.mediaType == MediaType.Photo) onRotate else null,

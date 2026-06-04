@@ -49,4 +49,24 @@ class LastFolderStoreTest {
         assertEquals(null, resolved)
         assertEquals(null, store.savedUri)
     }
+
+    @Test
+    fun firstLaunchWithoutSavedFolderDoesNotResolveGalleryFolder() {
+        val store = FakeLastFolderStore()
+
+        val resolved = store.resolveAvailableFolder(
+            persistedReadUris = setOf("content://tree/sdcard"),
+            persistedWriteUris = setOf("content://tree/sdcard")
+        )
+
+        assertEquals(null, resolved)
+        assertEquals(null, store.savedUri)
+    }
+
+    @Test
+    fun missingFolderQueryIsTreatedAsLoadFailure() {
+        assertThrows(FolderUnavailableException::class.java) {
+            requireFolderDocumentsCursor(null)
+        }
+    }
 }

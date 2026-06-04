@@ -16,6 +16,7 @@ class AdminSettingsTest {
         assertEquals(1000, settings.pricing.videoUnitPrice)
         assertEquals(10, settings.pricing.priceLimitCount)
         assertEquals(AppThemeOption.SignatureGold, settings.theme)
+        assertEquals(null, settings.preferredSdCardFolderUri)
     }
 
     @Test
@@ -51,11 +52,60 @@ class AdminSettingsTest {
         val updated = AdminSettings.Default.copy(
             adminPassword = "9876",
             pricing = AdminSettings.Default.pricing.copy(photoUnitPrice = 500),
-            theme = AppThemeOption.DeepTeal
+            theme = AppThemeOption.GraphiteCopper,
+            preferredSdCardFolderUri = "content://tree/custom-folder"
         )
 
         store.save(updated)
 
         assertEquals(updated, store.load())
+    }
+
+    @Test
+    fun preferredSdCardFolderResolvesOnlyWithReadAndWritePermissions() {
+        val settings = AdminSettings.Default.copy(
+            preferredSdCardFolderUri = "content://tree/custom-folder"
+        )
+
+        assertEquals(
+            "content://tree/custom-folder",
+            resolvePreferredSdCardFolder(
+                settings = settings,
+                persistedReadUris = setOf("content://tree/custom-folder"),
+                persistedWriteUris = setOf("content://tree/custom-folder")
+            )
+        )
+        assertEquals(
+            null,
+            resolvePreferredSdCardFolder(
+                settings = settings,
+                persistedReadUris = setOf("content://tree/custom-folder"),
+                persistedWriteUris = emptySet()
+            )
+        )
+        assertEquals(
+            null,
+            resolvePreferredSdCardFolder(
+                settings = AdminSettings.Default,
+                persistedReadUris = setOf("content://tree/custom-folder"),
+                persistedWriteUris = setOf("content://tree/custom-folder")
+            )
+        )
+    }
+
+    @Test
+    fun missingPermissionDoesNotMeanPreferredSdCardFolderShouldBeForgotten() {
+        val settings = AdminSettings.Default.copy(
+            preferredSdCardFolderUri = "content://tree/custom-folder"
+        )
+
+        val resolution = preferredSdCardFolderResolution(
+            settings = settings,
+            persistedReadUris = emptySet(),
+            persistedWriteUris = emptySet()
+        )
+
+        assertEquals(null, resolution.folderUri)
+        assertEquals(true, resolution.hasSavedPreference)
     }
 }

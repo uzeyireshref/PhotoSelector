@@ -24,12 +24,13 @@ class ThemePaletteTest {
     }
 
     @Test
-    fun selectableThemesAreOnlyTheThreeMatteDesignPalettes() {
+    fun selectableThemesUseTheApprovedMatteDesignPalettes() {
         assertEquals(
             listOf(
                 AppThemeOption.SignatureGold,
                 AppThemeOption.RedBlackWhite,
-                AppThemeOption.DeepTeal
+                AppThemeOption.GraphiteCopper,
+                AppThemeOption.MidnightRose
             ),
             AppThemeOption.entries
         )
@@ -54,6 +55,26 @@ class ThemePaletteTest {
         assertEquals(Color(0xFF111111), colors.Surface)
         assertEquals(Color(0xFFC21A24), colors.Accent)
         assertEquals(Color(0xFFF7F3F0), colors.TextPrimary)
+    }
+
+    @Test
+    fun graphiteCopperThemeUsesDarkGraphiteAndCopperAccent() {
+        val colors = appColorsForOption(AppThemeOption.GraphiteCopper)
+
+        assertEquals(Color(0xFF090806), colors.Background)
+        assertEquals(Color(0xFF141311), colors.Surface)
+        assertEquals(Color(0xFFD28A46), colors.Accent)
+        assertEquals(Color(0xFFF4EFE7), colors.TextPrimary)
+    }
+
+    @Test
+    fun midnightRoseThemeUsesDarkMidnightAndRoseAccent() {
+        val colors = appColorsForOption(AppThemeOption.MidnightRose)
+
+        assertEquals(Color(0xFF0A0710), colors.Background)
+        assertEquals(Color(0xFF15101B), colors.Surface)
+        assertEquals(Color(0xFFE06A8C), colors.Accent)
+        assertEquals(Color(0xFFF5EEF3), colors.TextPrimary)
     }
 
     @Test

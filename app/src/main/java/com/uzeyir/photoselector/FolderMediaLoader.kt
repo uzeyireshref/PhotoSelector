@@ -1,8 +1,14 @@
 package com.uzeyir.photoselector
 
 import android.content.ContentResolver
+import android.database.Cursor
 import android.net.Uri
 import android.provider.DocumentsContract
+
+internal class FolderUnavailableException : IllegalStateException("Folder documents could not be queried")
+
+internal fun requireFolderDocumentsCursor(cursor: Cursor?): Cursor =
+    cursor ?: throw FolderUnavailableException()
 
 internal fun queryFolderMedia(treeUri: Uri, contentResolver: ContentResolver): FolderLoadResult {
     val docId = DocumentsContract.getTreeDocumentId(treeUri)
@@ -18,7 +24,7 @@ internal fun queryFolderMedia(treeUri: Uri, contentResolver: ContentResolver): F
 
     val documents = mutableListOf<FolderDocumentData>()
     val mediaItems = mutableListOf<MediaItemData>()
-    contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+    requireFolderDocumentsCursor(contentResolver.query(childrenUri, projection, null, null, null)).use { cursor ->
         val idColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
         val mimeColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
         val nameColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)

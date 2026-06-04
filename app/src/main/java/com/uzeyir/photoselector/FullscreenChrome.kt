@@ -271,7 +271,7 @@ private fun TabletFullscreenBottomBarContent(
             )
         }
         Row(
-            modifier = Modifier.weight(0.8f),
+            modifier = Modifier.weight(0.55f),
             horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -315,7 +315,8 @@ private fun FullscreenReadablePriceSummary(
             totalPrice = Color.White
         ),
         contentPadding = PaddingValues(0.dp),
-        horizontalArrangement = Arrangement.spacedBy(18.dp)
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
+        expanded = true
     )
 }
 

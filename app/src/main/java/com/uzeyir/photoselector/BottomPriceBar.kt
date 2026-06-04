@@ -108,7 +108,8 @@ private fun PhoneBottomPriceBarContent(
             discount = discount,
             totalPayablePrice = totalPayablePrice,
             strings = strings,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            expanded = false
         )
         AppPrimaryButton(
             onClick = onReviewClick,
@@ -149,13 +150,14 @@ private fun TabletBottomPriceBarContent(
             discount = discount,
             totalPayablePrice = totalPayablePrice,
             strings = strings,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            expanded = true
         )
         AppPrimaryButton(
             onClick = onReviewClick,
             contentPadding = PaddingValues(horizontal = 34.dp, vertical = 15.dp),
             modifier = Modifier
-                .widthIn(min = 260.dp, max = 320.dp)
+                .widthIn(min = 240.dp, max = 300.dp)
                 .heightIn(min = 56.dp)
         ) {
             Text(buttonText, style = AppTheme.typography.SectionTitle)
@@ -191,7 +193,8 @@ internal fun CompactPriceSummary(
     ),
     containerColor: Color = Color.Transparent,
     contentPadding: PaddingValues = PaddingValues(0.dp),
-    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(28.dp)
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(28.dp),
+    expanded: Boolean? = null
 ) {
     val animatedTotalPayablePrice by animateIntAsState(
         targetValue = totalPayablePrice,
@@ -207,7 +210,7 @@ internal fun CompactPriceSummary(
     )
     val summaryContent: @Composable () -> Unit = {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            val wide = maxWidth >= 520.dp
+            val wide = expanded ?: (maxWidth >= 360.dp)
             if (wide) {
                 Row(
                     modifier = Modifier
@@ -221,16 +224,17 @@ internal fun CompactPriceSummary(
                         videoCount = videoCount,
                         strings = strings,
                         colors = colors,
-                        modifier = Modifier.widthIn(min = 150.dp, max = 190.dp)
+                        modifier = Modifier.widthIn(min = 130.dp, max = 170.dp)
                     )
                     PriceCalculationBlock(
                         calculationParts = calculationParts,
                         discount = discount,
                         strings = strings,
                         colors = colors,
+                        expanded = true,
                         modifier = Modifier
                             .weight(1f)
-                            .padding(horizontal = 22.dp)
+                            .padding(horizontal = 16.dp)
                     )
                     PriceTotalBlock(
                         originalTotalPrice = originalTotalPrice,
@@ -238,7 +242,7 @@ internal fun CompactPriceSummary(
                         totalPayablePrice = animatedTotalPayablePrice,
                         strings = strings,
                         colors = colors,
-                        modifier = Modifier.widthIn(min = 150.dp),
+                        modifier = Modifier.widthIn(min = 128.dp, max = 170.dp),
                         horizontalAlignment = Alignment.End
                     )
                 }
@@ -327,33 +331,52 @@ private fun PriceCalculationBlock(
     discount: Int,
     strings: LocalizedStrings,
     colors: PriceSummaryColors,
+    expanded: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     if (calculationParts.isEmpty() && discount <= 0) return
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        if (calculationParts.isNotEmpty()) {
-            Text(
-                text = strings.priceBreakdown,
-                style = AppTheme.typography.HelperText,
-                color = colors.supporting.copy(alpha = 0.72f)
-            )
-            calculationParts.forEach { part ->
+    if (expanded) {
+        Row(
+            modifier = modifier,
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (discount > 0) {
                 Text(
-                    text = part,
-                    style = AppTheme.typography.Body,
-                    color = colors.supporting
+                    text = "-${strings.price(discount)}",
+                    style = AppTheme.typography.SectionTitle,
+                    color = colors.discount,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
                 )
             }
         }
-        if (discount > 0) {
-            Text(
-                text = "${strings.discount}: ${strings.price(discount)}",
-                style = AppTheme.typography.Body,
-                color = colors.discount
-            )
+    } else {
+        Column(
+            modifier = modifier,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (calculationParts.isNotEmpty()) {
+                Text(
+                    text = strings.priceBreakdown,
+                    style = AppTheme.typography.HelperText,
+                    color = colors.supporting.copy(alpha = 0.72f)
+                )
+                calculationParts.forEach { part ->
+                    Text(
+                        text = part,
+                        style = AppTheme.typography.Body,
+                        color = colors.supporting
+                    )
+                }
+            }
+            if (discount > 0) {
+                Text(
+                    text = "${strings.discount}: ${strings.price(discount)}",
+                    style = AppTheme.typography.Body,
+                    color = colors.discount
+                )
+            }
         }
     }
 }
@@ -375,8 +398,9 @@ private fun PriceTotalBlock(
     ) {
         Text(
             text = strings.total,
-            style = AppTheme.typography.HelperText,
-            color = colors.totalLabel
+            style = AppTheme.typography.Body,
+            color = colors.totalPrice,
+            fontWeight = FontWeight.SemiBold
         )
         Text(
             text = strings.price(totalPayablePrice),

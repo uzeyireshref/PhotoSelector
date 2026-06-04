@@ -27,9 +27,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.SdStorage
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -132,7 +134,9 @@ fun AdminPanelScreen(
     onChangePassword: (String, String, String) -> Boolean,
     onSavePricing: (PricingSettings) -> Boolean,
     onResetPricing: () -> Unit,
-    onThemeSelected: (AppThemeOption) -> Unit
+    onThemeSelected: (AppThemeOption) -> Unit,
+    onChoosePreferredSdCardFolder: () -> Unit,
+    onClearPreferredSdCardFolder: () -> Unit
 ) {
     AppScreenBackground {
         Column(
@@ -189,6 +193,12 @@ fun AdminPanelScreen(
                         icon = { Icon(Icons.Default.Palette, contentDescription = null) },
                         onClick = { onSectionSelected(AdminPanelSection.Themes) }
                     )
+                    AdminRailItem(
+                        selected = selectedSection == AdminPanelSection.SdCardFolder,
+                        label = strings.adminSdCardFolder,
+                        icon = { Icon(Icons.Default.SdStorage, contentDescription = null) },
+                        onClick = { onSectionSelected(AdminPanelSection.SdCardFolder) }
+                    )
                 }
                 AppCard(
                     modifier = Modifier
@@ -208,6 +218,12 @@ fun AdminPanelScreen(
                             selectedTheme = settings.theme,
                             strings = strings,
                             onThemeSelected = onThemeSelected
+                        )
+                        AdminPanelSection.SdCardFolder -> SdCardFolderAdminSection(
+                            selectedFolderUri = settings.preferredSdCardFolderUri,
+                            strings = strings,
+                            onChoosePreferredSdCardFolder = onChoosePreferredSdCardFolder,
+                            onClearPreferredSdCardFolder = onClearPreferredSdCardFolder
                         )
                     }
                 }
@@ -415,6 +431,62 @@ private fun ThemesAdminSection(
 }
 
 @Composable
+private fun SdCardFolderAdminSection(
+    selectedFolderUri: String?,
+    strings: LocalizedStrings,
+    onChoosePreferredSdCardFolder: () -> Unit,
+    onClearPreferredSdCardFolder: () -> Unit
+) {
+    var message by remember(selectedFolderUri) { mutableStateOf<String?>(null) }
+
+    AdminSectionColumn(title = strings.adminPreferredSdCardFolder, icon = Icons.Default.SdStorage) {
+        Text(
+            text = strings.adminPreferredSdCardFolderDescription,
+            style = AppTheme.typography.Body,
+            color = AppTheme.colors.TextSecondary
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.FolderOpen,
+                contentDescription = null,
+                tint = AppTheme.colors.Accent
+            )
+            Text(
+                text = selectedFolderUri ?: strings.adminNoSdCardFolderSelected,
+                style = AppTheme.typography.Body,
+                color = AppTheme.colors.TextPrimary,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            AppPrimaryButton(
+                onClick = {
+                    message = null
+                    onChoosePreferredSdCardFolder()
+                },
+                modifier = Modifier.widthIn(min = 180.dp)
+            ) {
+                Text(strings.adminChooseSdCardFolder, style = AppTheme.typography.ButtonText)
+            }
+            AppOutlinedButton(
+                onClick = {
+                    onClearPreferredSdCardFolder()
+                    message = strings.adminSdCardFolderCleared
+                },
+                modifier = Modifier.widthIn(min = 180.dp)
+            ) {
+                Text(strings.adminClearSdCardFolder, style = AppTheme.typography.ButtonText)
+            }
+        }
+        message?.let { Text(it, color = AppTheme.colors.TextPrimary, style = AppTheme.typography.Body) }
+    }
+}
+
+@Composable
 private fun AdminSectionColumn(
     title: String,
     icon: ImageVector? = null,
@@ -492,11 +564,13 @@ private fun NumberField(
 private fun AppThemeOption.adminLabel(strings: LocalizedStrings): String = when (this) {
     AppThemeOption.SignatureGold -> strings.themeSignatureGold
     AppThemeOption.RedBlackWhite -> strings.themeRedBlackWhite
-    AppThemeOption.DeepTeal -> strings.themeDeepTeal
+    AppThemeOption.GraphiteCopper -> strings.themeGraphiteCopper
+    AppThemeOption.MidnightRose -> strings.themeMidnightRose
 }
 
 private fun AppThemeOption.adminDescription(strings: LocalizedStrings): String = when (this) {
     AppThemeOption.SignatureGold -> strings.themeSignatureGoldDescription
     AppThemeOption.RedBlackWhite -> strings.themeRedBlackWhiteDescription
-    AppThemeOption.DeepTeal -> strings.themeDeepTealDescription
+    AppThemeOption.GraphiteCopper -> strings.themeGraphiteCopperDescription
+    AppThemeOption.MidnightRose -> strings.themeMidnightRoseDescription
 }

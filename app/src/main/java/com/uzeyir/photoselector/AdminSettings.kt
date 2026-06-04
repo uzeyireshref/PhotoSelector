@@ -5,13 +5,15 @@ import android.content.SharedPreferences
 enum class AppThemeOption {
     SignatureGold,
     RedBlackWhite,
-    DeepTeal
+    GraphiteCopper,
+    MidnightRose
 }
 
 data class AdminSettings(
     val adminPassword: String = DEFAULT_ADMIN_PASSWORD,
     val pricing: PricingSettings = PricingSettings.Default,
-    val theme: AppThemeOption = AppThemeOption.SignatureGold
+    val theme: AppThemeOption = AppThemeOption.SignatureGold,
+    val preferredSdCardFolderUri: String? = null
 ) {
     fun canChangePassword(currentPassword: String, newPassword: String, repeatedPassword: String): Boolean =
         currentPassword == adminPassword &&
@@ -51,7 +53,9 @@ class SharedPreferencesAdminSettingsStore(
         return AdminSettings(
             adminPassword = password,
             pricing = pricing,
-            theme = theme
+            theme = theme,
+            preferredSdCardFolderUri = preferences.getString(KEY_PREFERRED_SD_CARD_FOLDER_URI, null)
+                ?.takeIf { it.isNotBlank() }
         )
     }
 
@@ -63,6 +67,7 @@ class SharedPreferencesAdminSettingsStore(
             .putInt(KEY_PRICE_LIMIT_COUNT, settings.pricing.priceLimitCount)
             .putString(KEY_DISCOUNT_TIERS, serializeDiscountTiers(settings.pricing.discountTiers))
             .putString(KEY_THEME, settings.theme.name)
+            .putString(KEY_PREFERRED_SD_CARD_FOLDER_URI, settings.preferredSdCardFolderUri)
             .apply()
     }
 
@@ -73,6 +78,7 @@ class SharedPreferencesAdminSettingsStore(
         private const val KEY_PRICE_LIMIT_COUNT = "price_limit_count"
         private const val KEY_DISCOUNT_TIERS = "discount_tiers"
         private const val KEY_THEME = "app_theme"
+        private const val KEY_PREFERRED_SD_CARD_FOLDER_URI = "preferred_sd_card_folder_uri"
     }
 }
 
@@ -103,4 +109,30 @@ private fun parseDiscountTiers(saved: String?): List<PricingDiscountTier> {
         }
         .takeIf { it.isNotEmpty() }
         ?: defaultDiscountTiers
+}
+
+fun resolvePreferredSdCardFolder(
+    settings: AdminSettings,
+    persistedReadUris: Set<String>,
+    persistedWriteUris: Set<String>
+): String? {
+    return preferredSdCardFolderResolution(settings, persistedReadUris, persistedWriteUris).folderUri
+}
+
+data class PreferredSdCardFolderResolution(
+    val folderUri: String?,
+    val hasSavedPreference: Boolean
+)
+
+fun preferredSdCardFolderResolution(
+    settings: AdminSettings,
+    persistedReadUris: Set<String>,
+    persistedWriteUris: Set<String>
+): PreferredSdCardFolderResolution {
+    val savedFolderUri = settings.preferredSdCardFolderUri
+    val resolvedFolderUri = savedFolderUri?.takeIf { it in persistedReadUris && it in persistedWriteUris }
+    return PreferredSdCardFolderResolution(
+        folderUri = resolvedFolderUri,
+        hasSavedPreference = savedFolderUri != null
+    )
 }

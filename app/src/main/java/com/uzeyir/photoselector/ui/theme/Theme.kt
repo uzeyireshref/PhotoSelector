@@ -56,26 +56,43 @@ private val RedBlackWhitePalette = MattePalette(
     error = Color(0xFFFF8A91)
 )
 
-private val DeepTealPalette = MattePalette(
-    background = Color(0xFF06100F),
-    backgroundSoft = Color(0xFF020706),
-    surface = Color(0xFF101817),
-    surfaceElevated = Color(0xFF182321),
-    surfaceMuted = Color(0xFF121D1B),
-    accent = Color(0xFF6BAF9C),
-    accentSoft = Color(0xFFD8C18E),
-    borderSubtle = Color(0xFF273A35),
-    borderAccent = Color(0xFF426B60),
-    textPrimary = Color(0xFFF0F3EE),
-    textSecondary = Color(0xFFA3ADA8),
-    textOnAccent = Color(0xFF06100F),
+private val GraphiteCopperPalette = MattePalette(
+    background = Color(0xFF090806),
+    backgroundSoft = Color(0xFF040403),
+    surface = Color(0xFF141311),
+    surfaceElevated = Color(0xFF1E1B18),
+    surfaceMuted = Color(0xFF171512),
+    accent = Color(0xFFD28A46),
+    accentSoft = Color(0xFFF0B76B),
+    borderSubtle = Color(0xFF38302A),
+    borderAccent = Color(0xFF7C4F2C),
+    textPrimary = Color(0xFFF4EFE7),
+    textSecondary = Color(0xFFB3A99C),
+    textOnAccent = Color(0xFF160D07),
+    error = Color(0xFFFF8A91)
+)
+
+private val MidnightRosePalette = MattePalette(
+    background = Color(0xFF0A0710),
+    backgroundSoft = Color(0xFF040307),
+    surface = Color(0xFF15101B),
+    surfaceElevated = Color(0xFF201827),
+    surfaceMuted = Color(0xFF18121F),
+    accent = Color(0xFFE06A8C),
+    accentSoft = Color(0xFFF4A7B9),
+    borderSubtle = Color(0xFF33293B),
+    borderAccent = Color(0xFF7D3A52),
+    textPrimary = Color(0xFFF5EEF3),
+    textSecondary = Color(0xFFB6A8B4),
+    textOnAccent = Color(0xFF17070E),
     error = Color(0xFFFF8A91)
 )
 
 private fun paletteForOption(themeOption: AppThemeOption): MattePalette = when (themeOption) {
     AppThemeOption.SignatureGold -> SignatureGoldPalette
     AppThemeOption.RedBlackWhite -> RedBlackWhitePalette
-    AppThemeOption.DeepTeal -> DeepTealPalette
+    AppThemeOption.GraphiteCopper -> GraphiteCopperPalette
+    AppThemeOption.MidnightRose -> MidnightRosePalette
 }
 
 private fun matteScheme(

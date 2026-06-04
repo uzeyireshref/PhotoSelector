@@ -27,19 +27,22 @@ class PhotoViewModelTest {
     }
 
     @Test
-    fun nextAndPreviousPhotoStayInsideBounds() {
+    fun nextAndPreviousPhotoWrapAroundBounds() {
         val viewModel = PhotoViewModel()
         viewModel.setPhotos(testPhotos(2))
 
         viewModel.openPhotoAt(0)
         viewModel.showPreviousPhoto()
+        assertEquals(1, viewModel.selectedPhotoIndex)
+
+        viewModel.showNextPhoto()
         assertEquals(0, viewModel.selectedPhotoIndex)
 
         viewModel.showNextPhoto()
         assertEquals(1, viewModel.selectedPhotoIndex)
 
         viewModel.showNextPhoto()
-        assertEquals(1, viewModel.selectedPhotoIndex)
+        assertEquals(0, viewModel.selectedPhotoIndex)
     }
 
     @Test
@@ -204,6 +207,58 @@ class PhotoViewModelTest {
         assertEquals(listOf(favoriteVideo, favoritePhoto), viewModel.viewerPhotos)
         assertEquals(0, viewModel.selectedPhotoIndex)
         assertEquals(favoriteVideo.uri, viewModel.selectedPhotoUri)
+    }
+
+    @Test
+    fun unlikingFirstFavoriteInViewerSelectsNextFavorite() {
+        val viewModel = PhotoViewModel()
+        val photos = testPhotos(3)
+        viewModel.setPhotos(photos)
+        photos.forEach { viewModel.toggleLike(it.uri) }
+        val firstFavoriteUri = viewModel.likedMediaItems.first().uri
+        val nextFavoriteUri = viewModel.likedMediaItems[1].uri
+        viewModel.openFavoritePhoto(firstFavoriteUri)
+
+        viewModel.toggleLike(firstFavoriteUri)
+
+        assertEquals(Screen.PhotoDetail, viewModel.currentScreen)
+        assertEquals(PhotoViewerSource.Favorites, viewModel.viewerSource)
+        assertEquals(0, viewModel.selectedPhotoIndex)
+        assertEquals(nextFavoriteUri, viewModel.selectedPhotoUri)
+    }
+
+    @Test
+    fun unlikingLastFavoriteInViewerSelectsPreviousFavorite() {
+        val viewModel = PhotoViewModel()
+        val photos = testPhotos(3)
+        viewModel.setPhotos(photos)
+        photos.forEach { viewModel.toggleLike(it.uri) }
+        val lastFavoriteUri = viewModel.likedMediaItems.last().uri
+        val previousFavoriteUri = viewModel.likedMediaItems[viewModel.likedMediaItems.lastIndex - 1].uri
+        viewModel.openFavoritePhoto(lastFavoriteUri)
+
+        viewModel.toggleLike(lastFavoriteUri)
+
+        assertEquals(Screen.PhotoDetail, viewModel.currentScreen)
+        assertEquals(PhotoViewerSource.Favorites, viewModel.viewerSource)
+        assertEquals(viewModel.likedMediaItems.lastIndex, viewModel.selectedPhotoIndex)
+        assertEquals(previousFavoriteUri, viewModel.selectedPhotoUri)
+    }
+
+    @Test
+    fun unlikingOnlyFavoriteInViewerReturnsToFavoritesGallery() {
+        val viewModel = PhotoViewModel()
+        val photos = testPhotos(1)
+        viewModel.setPhotos(photos)
+        viewModel.toggleLike(photos[0].uri)
+        viewModel.openFavoritePhoto(photos[0].uri)
+
+        viewModel.toggleLike(photos[0].uri)
+
+        assertEquals(Screen.Gallery, viewModel.currentScreen)
+        assertEquals(GalleryTab.Favorites, viewModel.galleryTab)
+        assertEquals(-1, viewModel.selectedPhotoIndex)
+        assertEquals(emptyList<MediaItemData>(), viewModel.likedMediaItems)
     }
 
     @Test
@@ -387,10 +442,10 @@ class PhotoViewModelTest {
     }
 
     @Test
-    fun lastFolderRestoreIsAttemptedOnlyOnceForViewModelLifetime() {
+    fun lastFolderRestoreIsDisabledSoAppStartsOnHome() {
         val viewModel = PhotoViewModel()
 
-        assertEquals(true, viewModel.shouldRestoreLastFolderOnStartup())
+        assertEquals(false, viewModel.shouldRestoreLastFolderOnStartup())
         viewModel.markLastFolderRestoreAttempted()
 
         assertEquals(false, viewModel.shouldRestoreLastFolderOnStartup())

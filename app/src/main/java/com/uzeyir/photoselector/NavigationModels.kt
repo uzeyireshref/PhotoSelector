@@ -17,5 +17,6 @@ enum class GalleryTab {
 enum class AdminPanelSection {
     Password,
     Pricing,
-    Themes
+    Themes,
+    SdCardFolder
 }
