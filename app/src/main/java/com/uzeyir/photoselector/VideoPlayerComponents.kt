@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -178,6 +179,7 @@ fun VideoFullscreenPlayer(
     var playbackState by remember(media.uri) { mutableIntStateOf(player.playbackState) }
     var videoWidth by remember(media.uri) { mutableIntStateOf(0) }
     var videoHeight by remember(media.uri) { mutableIntStateOf(0) }
+    var isFlipped by remember(media.uri) { mutableStateOf(false) }
 
     fun updatePlaybackState() {
         currentPositionMs = player.currentPosition.coerceAtLeast(0L)
@@ -223,7 +225,7 @@ fun VideoFullscreenPlayer(
         modifier = modifier.background(Color.Black),
         contentAlignment = Alignment.Center
     ) {
-        val rotationDegrees = videoFullscreenRotationDegrees(videoWidth, videoHeight)
+        val rotationDegrees = videoFullscreenRotationDegrees(videoWidth, videoHeight, isFlipped)
         val (mediaWidthPx, mediaHeightPx) = fullscreenVideoSurfaceSize(
             containerWidthPx = constraints.maxWidth,
             containerHeightPx = constraints.maxHeight,
@@ -256,6 +258,21 @@ fun VideoFullscreenPlayer(
                     )
                 }
             }
+        }
+
+        FilledIconButton(
+            onClick = { isFlipped = !isFlipped },
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .statusBarsPadding()
+                .padding(top = 12.dp, start = 16.dp)
+                .size(48.dp),
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = AppTheme.colors.SurfaceMuted,
+                contentColor = Color.White
+            )
+        ) {
+            Icon(Icons.AutoMirrored.Filled.RotateRight, contentDescription = "${strings.rotate} 180°")
         }
 
         FilledIconButton(

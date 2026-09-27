@@ -29,10 +29,24 @@ class VideoPlaybackPolicyTest {
     }
 
     @Test
-    fun videoFullscreenRotationTurnsOnlyLandscapeVideoSideways() {
-        assertEquals(90, videoFullscreenRotationDegrees(videoWidth = 1920, videoHeight = 1080))
-        assertEquals(0, videoFullscreenRotationDegrees(videoWidth = 1080, videoHeight = 1920))
-        assertEquals(0, videoFullscreenRotationDegrees(videoWidth = 0, videoHeight = 0))
+    fun videoFullscreenDefaultsToOppositeDirection() {
+        assertEquals(270, videoFullscreenRotationDegrees(videoWidth = 1920, videoHeight = 1080))
+        assertEquals(180, videoFullscreenRotationDegrees(videoWidth = 1080, videoHeight = 1920))
+        assertEquals(180, videoFullscreenRotationDegrees(videoWidth = 1080, videoHeight = 1080))
+        assertEquals(180, videoFullscreenRotationDegrees(videoWidth = 0, videoHeight = 0))
+    }
+
+    @Test
+    fun flippingVideoTurnsItHalfwayWithoutChangingSurfaceSize() {
+        for ((width, height) in listOf(1920 to 1080, 1080 to 1920, 1080 to 1080, 0 to 0)) {
+            val initialRotation = videoFullscreenRotationDegrees(width, height)
+            val flippedRotation = videoFullscreenRotationDegrees(width, height, isFlipped = true)
+            assertEquals((initialRotation + 180) % 360, flippedRotation)
+            assertEquals(
+                fullscreenVideoSurfaceSize(1080, 2113, width, height, initialRotation),
+                fullscreenVideoSurfaceSize(1080, 2113, width, height, flippedRotation)
+            )
+        }
     }
 
     @Test

@@ -16,8 +16,14 @@ fun rotatedMediaSize(containerWidthPx: Int, containerHeightPx: Int, rotationDegr
     }
 }
 
-fun videoFullscreenRotationDegrees(videoWidth: Int, videoHeight: Int): Int =
-    if (videoWidth > 0 && videoHeight > 0 && videoWidth > videoHeight) 90 else 0
+fun videoFullscreenRotationDegrees(
+    videoWidth: Int,
+    videoHeight: Int,
+    isFlipped: Boolean = false
+): Int {
+    val defaultRotation = if (videoWidth > 0 && videoHeight > 0 && videoWidth > videoHeight) 270 else 180
+    return (defaultRotation + if (isFlipped) 180 else 0) % 360
+}
 
 fun fullscreenVideoSurfaceSize(
     containerWidthPx: Int,
