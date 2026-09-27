@@ -45,6 +45,8 @@ internal fun copyDocumentBytes(
     if (copiedBytes <= 0L) {
         throw LocalizedExportException(UiMessage.CopyVerificationFailed, displayName)
     }
+    // flush() alone does not wait for the operating system's disk buffers.
+    if (output is FileOutputStream) output.fd.sync()
     return copiedBytes
 }
 
@@ -178,5 +180,7 @@ internal fun copyChannelBytes(
         copiedBytes += transferred
         onProgress(copiedBytes, inputSize)
     }
+    // Include file metadata (such as length) before reporting the copy complete.
+    outputChannel.force(true)
     return copiedBytes
 }

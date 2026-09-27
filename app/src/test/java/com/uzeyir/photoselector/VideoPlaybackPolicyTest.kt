@@ -29,11 +29,11 @@ class VideoPlaybackPolicyTest {
     }
 
     @Test
-    fun videoFullscreenDefaultsToOppositeDirection() {
-        assertEquals(270, videoFullscreenRotationDegrees(videoWidth = 1920, videoHeight = 1080))
-        assertEquals(180, videoFullscreenRotationDegrees(videoWidth = 1080, videoHeight = 1920))
-        assertEquals(180, videoFullscreenRotationDegrees(videoWidth = 1080, videoHeight = 1080))
-        assertEquals(180, videoFullscreenRotationDegrees(videoWidth = 0, videoHeight = 0))
+    fun videoFullscreenDefaultsToOriginalDirection() {
+        assertEquals(90, videoFullscreenRotationDegrees(videoWidth = 1920, videoHeight = 1080))
+        assertEquals(0, videoFullscreenRotationDegrees(videoWidth = 1080, videoHeight = 1920))
+        assertEquals(0, videoFullscreenRotationDegrees(videoWidth = 1080, videoHeight = 1080))
+        assertEquals(0, videoFullscreenRotationDegrees(videoWidth = 0, videoHeight = 0))
     }
 
     @Test

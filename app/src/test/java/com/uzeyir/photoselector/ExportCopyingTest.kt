@@ -5,14 +5,77 @@ import android.net.Uri
 import androidx.media3.common.Player
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.IOException
+import java.nio.channels.ClosedChannelException
 import java.util.Calendar
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
 
 class ExportCopyingTest {
+
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
+
+    @Test
+    fun channelCopyWritesCompleteFileBeforeReturning() {
+        val bytes = ByteArray(32_768) { (it % 251).toByte() }
+        val source = temporaryFolder.newFile().apply { writeBytes(bytes) }
+        val destination = temporaryFolder.newFile()
+        FileInputStream(source).channel.use { input ->
+            FileOutputStream(destination).channel.use { output ->
+                assertEquals(bytes.size.toLong(), copyChannelBytes(input, output))
+            }
+        }
+        assertArrayEquals(bytes, destination.readBytes())
+    }
+
+    @Test
+    fun channelCopyDoesNotSucceedWhenDestinationClosesBeforeSync() {
+        val source = temporaryFolder.newFile().apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        val destination = temporaryFolder.newFile()
+        FileInputStream(source).channel.use { input ->
+            FileOutputStream(destination).channel.use { output ->
+                assertThrows(ClosedChannelException::class.java) {
+                    copyChannelBytes(input, output) { copied, total ->
+                        if (copied == total) output.close()
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun streamCopyDoesNotSucceedWhenDestinationClosesBeforeSync() {
+        val destination = temporaryFolder.newFile()
+        val output = object : FileOutputStream(destination) {
+            override fun flush() {
+                super.flush()
+                close()
+            }
+        }
+        output.use {
+            assertThrows(IOException::class.java) {
+                copyDocumentBytes(ByteArrayInputStream(byteArrayOf(1, 2, 3)), it, "photo.jpg")
+            }
+        }
+    }
+
+    @Test
+    fun streamCopyWritesCompleteFileBeforeReturning() {
+        val bytes = byteArrayOf(1, 2, 3, 4)
+        val destination = temporaryFolder.newFile()
+        FileOutputStream(destination).use { output ->
+            assertEquals(4L, copyDocumentBytes(ByteArrayInputStream(bytes), output, "photo.jpg"))
+        }
+        assertArrayEquals(bytes, destination.readBytes())
+    }
 
     @Test
     fun copyDocumentBytesCopiesNonEmptyStreams() {
@@ -56,8 +119,17 @@ class ExportCopyingTest {
     fun exportProgressFractionIsBoundedByCopiedAndTotalFiles() {
         assertEquals(0f, ExportStatus.Copying(copiedBytes = 0, totalBytes = 400).progressFraction)
         assertEquals(0.5f, ExportStatus.Copying(copiedBytes = 200, totalBytes = 400).progressFraction)
-        assertEquals(1f, ExportStatus.Copying(copiedBytes = 500, totalBytes = 400).progressFraction)
+        assertEquals(0.99f, ExportStatus.Copying(copiedBytes = 500, totalBytes = 400).progressFraction)
         assertEquals(null, ExportStatus.Copying(copiedBytes = 0, totalBytes = null).progressFraction)
+    }
+
+    @Test
+    fun exportProgressWaitsForFileCompletionAfterAllBytesAreTransferred() {
+        val writing = ExportStatus.Copying(
+            copiedFiles = 1, totalFiles = 2, copiedBytes = 400, totalBytes = 400
+        )
+        assertEquals(0.99f, writing.progressFraction)
+        assertEquals(1f, writing.copy(copiedFiles = 2).progressFraction)
     }
 
     @Test

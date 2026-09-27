@@ -21,7 +21,7 @@ fun videoFullscreenRotationDegrees(
     videoHeight: Int,
     isFlipped: Boolean = false
 ): Int {
-    val defaultRotation = if (videoWidth > 0 && videoHeight > 0 && videoWidth > videoHeight) 270 else 180
+    val defaultRotation = if (videoWidth > 0 && videoHeight > 0 && videoWidth > videoHeight) 90 else 0
     return (defaultRotation + if (isFlipped) 180 else 0) % 360
 }
 

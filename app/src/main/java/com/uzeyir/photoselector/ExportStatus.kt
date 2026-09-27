@@ -14,7 +14,11 @@ sealed class ExportStatus {
         val progressFraction: Float?
             get() = totalBytes
                 ?.takeIf { it > 0L }
-                ?.let { total -> (copiedBytes.toFloat() / total.toFloat()).coerceIn(0f, 1f) }
+                ?.let { total ->
+                    // Byte transfer can finish before disk sync and size verification.
+                    val limit = if (totalFiles > 0 && copiedFiles >= totalFiles) 1f else 0.99f
+                    (copiedBytes.toFloat() / total.toFloat()).coerceIn(0f, limit)
+                }
 
         val currentFileProgressFraction: Float?
             get() = currentFileTotalBytes
